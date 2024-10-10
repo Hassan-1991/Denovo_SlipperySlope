@@ -53,6 +53,18 @@ cut -f1 -d "(" Ecoli_step4_ORFans.final.besthits | cut -f 2- -d "@" | grep -f - 
 grep "^>" Ecoli_step4_ORFans_proxflanks.faa | sed "s/_/\t/" | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep "," | cut -f1 -d "(" | grep -f - Ecoli_step4_ORFans.besthits | cut -f2- -d "@" | grep --no-group-separator -A1 -F -f - Ecoli_step4_ORFans_proxflanks.faa > Ecoli_step4_ORFans.final.proxflanks.faa
 grep -f replacement_besthits 160_shortcontig_besthits | cut -f2- -d "@" | grep --no-group-separator -A1 -F -f - 160shortcontigs.besthits.proxflanks.faa >> Ecoli_step4_ORFans.final.proxflanks.faa
 
+for i in $(ls *prox*info | cut -f1,2 -d "_")
+do
+    value2=$(grep "$i" ../Ecoli_step4_ORFans.final.besthits.gtf | awk -F '\t' '{print $5-$4+1}')
+    sed -i "s/$/ $value2/" "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo
+done
+
+for i in $(ls *prox*info | cut -f1,2 -d "_")
+do
+awk '($4<($6+600))' "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo > "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo_2
+done
+find . -type f -empty -delete
+
 #GENEFLANKS
 #Make all-encompassing gtf
 ls 500_gffs/500_gtfs_processed/ | sed "s/^/cat 500_gffs\/500_gtfs_processed\//g" | bash > 500_gffs/500_gtfs_processed/all_500_gtfs.gtf
@@ -63,7 +75,6 @@ awk -v var="$i" -F "\"" '($2==var)' Ecoli_step4_ORFans.final.besthits.gtf | bedt
 done
 
 grep "^>" Ecoli_step4_ORFans_geneflanks.faa | cut -f -3 -d "_" | rev | sed "s/_/\t/" | rev | awk '{print $2,$1}' | awk '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep "," | cut -f1 | grep --no-group-separator -A1 -F -f - Ecoli_step4_ORFans_geneflanks.faa > Ecoli_step4_ORFans.final.geneflanks.faa
-
 #blastin time
 blastn -query Ecoli_step4_ORFans.final.proxflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out Ecoli_step4_ORFans_proxflanks_blastn
 cat Ecoli_step4_ORFans_proxflanks_blastn | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | cut -f 1 -d "@" | awk -F '_' '{OFS="\t"}{print $1,$0}' | sed "s/left500_//g" | sed "s/right500_//g" | awk -F '\t' '{OFS=""}{print $1,"\t",$2,"%",$3}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep "left.*right" | cut -f 1 | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > Ecoli_step4_ORFans_proxflanks_targets.txt
@@ -82,8 +93,90 @@ grep -P "$i\t" Ecoli_step4_ORFans_geneflanks_targets.txt | sed "s/,/\n/g" | sed 
 grep -f "$i"_Ecoli_step4_ORFans_geneflanks_targetlist.txt Ecoli_step4_ORFans_geneflanks_blastn | grep "$i"_ | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | awk -F'\t' 'BEGIN { OFS = "\t" } { sub(/@.*$/, "", $2); print }' | sed "s/_up/%up/g" | sed "s/_down/%down/g" | cut -f 2- -d "%" | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}'  | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' | awk -F '\t' '($4<10000)' > "$i"_Ecoli_step4_ORFans_geneflanks_intervalinfo
 done
 
+for i in $(ls *gene*info | cut -f1,2 -d "_")
+do
+    value2=$(grep "$i" ../Ecoli_step4_ORFans.final.besthits.gtf | awk -F '\t' '{print $5-$4+1}')
+    sed -i "s/$/ $value2/" "$i"_Ecoli_step4_ORFans_geneflanks_intervalinfo
+done
 
-#What constitutes non-coli Escherichia?
+for i in $(ls *prox*info | cut -f1,2 -d "_"); do awk '($4<($6+600))' "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo > "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo_2; done
+for i in $(ls *gene*info | cut -f1,2 -d "_"); do awk '($4<($6+2000))' "$i"_Ecoli_step4_ORFans_geneflanks_intervalinfo > "$i"_Ecoli_step4_ORFans_geneflanks_intervalinfo_2; done
+find . -type f -empty -delete
+
+#sidebar: meaningful flanks for comparative analysis between ORFans and non-ORFans
+for i in $(ls *prox*info | cut -f1,2 -d "_"); do awk '(($4<($6+600))&&($4>($6*0.5)))' "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo > "$i"_Ecoli_step4_ORFans_proxflanks_intervalinfo_2; done
+for i in $(ls *gene*info | cut -f1,2 -d "_"); do awk '(($4<($6+2000))&&($4>($6*0.5)))' "$i"_Ecoli_step4_ORFans_geneflanks_intervalinfo > "$i"_Ecoli_step4_ORFans_geneflanks_intervalinfo_2; done
+find . -type f -empty -delete
+
+#At this point, the two streams can hopefully join
+
+for i in $(ls *intervalinfo_2 | cut -f1,2 -d "_" | sort -u); do ls *"$i"_*intervalinfo_2 | sed "s/^/cat /g" | bash >> "$i"_joint_intervalcoords; done
+
+for variable in $(ls *_joint_intervalcoords | rev | cut -f 3- -d "_" | rev); do
+    command="grep \"plus\" ${variable}_joint_intervalcoords | awk '{OFS=\"\"}{print \"samtools faidx /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$2,\"-\",\$3}' | sed \"s/\$/ >> ${variable}_interval.faa/g\" && grep \"minus\" ${variable}_joint_intervalcoords | awk '{OFS=\"\"}{print \"samtools faidx -i /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$2,\"-\",\$3}' | sed \"s/\$/ >> ${variable}_interval.faa/g\""
+    output_file="${variable}_joint_samtools.sh"
+    bash -c "$command" > "$output_file"
+done
+
+ls *_joint_samtools.sh | sed "s/^/bash /g" > running_sam.sh
+./parallelized_run.sh
+
+#Get protein sequences as tblastn queries for the next step
+cd..
+linear 419_all_proteins.faa
+cut -f2- -d "@" Ecoli_step4_ORFans.final.besthits | grep --no-group-separator -A1 -f - 419_all_proteins.faa > Ecoli_step4_ORFans.final.besthits.prot.faa
+cat Ecoli_step4_ORFans.final.besthits.gtf | gtf2bed | bedtools getfasta -s -name -fi 500_gffs/all_500_genomes.fasta -bed - > Ecoli_step4_ORFans.final.besthits.faa
+cd flank_analysis
+
+#tblastn
+#Make databases out of intervals
+for i in $(ls *_interval.faa | cut -f1,2 -d "_")
+do
+makeblastdb -in "$i"_interval.faa -dbtype nucl -out "$i"_interval
+done
+
+#tblastn
+for i in $(ls *_interval.faa | cut -f1,2 -d "_")
+do
+grep --no-group-separator -A1 "$i" ../Ecoli_step4_ORFans.final.besthits.prot.faa |
+tblastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 1000000 -num_alignments 1000000 -evalue 200000 -out "$i"_interval_tblastn
+done
+
+#blastn
+for i in $(ls *_interval.faa | cut -f1,2 -d "_")
+do
+grep --no-group-separator -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.faa |
+blastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 1000000 -num_alignments 1000000 -evalue 200000 -out "$i"_interval_blastn -word_size 7
+done
+
+export PERL5LIB=/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/lib/
+
+for i in $(ls *tblastn | cut -f1,2 -d "_")
+do
+    echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_tblastn > ${i}_tblastn_mviewed"
+done
+
+for i in $(ls *tblastn_mviewed | cut -f1,2 -d "_")
+do
+querylength=$(grep -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.prot.faa | grep -v "^>" | awk '{print length($0)}')
+ratio=$(tail -n+7 "$i"_tblastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
+if (( $(echo "$ratio > 0.5" | bc -l) ))
+then
+tail -n+8 "$i"_tblastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | seqkit rmdup -s | linear > "$i"_tblastn_seq.faa
+tail -n+7 "$i"_tblastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$NF}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | head -2 >> "$i"_tblastn_seq.faa
+grep -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.prot.faa | sed "s/>/>FULL_/g" >> "$i"_tblastn_seq.faa
+fi
+done
+
+#Remove ones that don't meet this criteria
+wc -l *_tblastn_seq.faa | grep " 4 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
+
+#align
+for i in $(wc -l *tblastn_seq.faa | grep -v " 4 " | grep -v "total" | rev | cut -f1 -d " " | rev); do cut -f 1 -d "(" $i > "$i".aln; done
+
+
+
+####Intra-genus section####
 
 /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/fastANI_noncoli_Escherichia.sh
 #Tag distances with species names
@@ -116,4 +209,21 @@ awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Es
 #proteins:
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g" | sed "s/^/prodigal -i /g" | sed "s/$/ -f gff -o/g" | sed "s/.fa -f/.fa\/-f/g" | awk -F '/' '{print $0,$9}' | sed "s/.fa\/-f/.fa -f/g" | sed "s/$/t/g" | sed "s/.fat/.gff/g" > running.sh
 ./parallelize_run.sh
+#For GBRS:
+cd genomes
+for i in $(ls GCA*genomic.fna | cut -f-2 -d "_"); do prodigal -i "$i"*fna -f gff -o "$i"_prodigal.gff; done
 
+#Convert gff to gtf:
+#ATB:
+for i in $(ls *gff | cut -f1 -d '.'); do grep -v "#" "$i".gff | awk -F '\t' '($3=="CDS")' | awk -F '\t' '{OFS=FS}{print $1,$2,$3,$4,$5,$6,$7,$8,$1}' | rev | cut -f 2- -d "." | rev | awk -F '\t' '{OFS=FS}{print $1,$2,$3,$4,$5,$6,$7,$8,"transcript_id \""$9"_"NR"\";gene_id \""$9"_"NR"\";"}' > "$i".gtf; done
+#GBRS:
+for i in $(ls *gff | sed "s/_genomic.gff//g"); do grep -v "#" "$i".gff | awk -F '\t' '($3=="CDS")' | awk -F '\t' '{OFS=FS}{print $1,$2,$3,$4,$5,$6,$7,$8,$1}' | rev | cut -f 2- -d "." | rev | awk -F '\t' '{OFS=FS}{print $1,$2,$3,$4,$5,$6,$7,$8,"transcript_id \""$9"_"NR"\";gene_id \""$9"_"NR"\";"}' > "$i".gtf; done
+#CDS, ATB:
+awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g" | awk -F '/' '{print "cat gtfs\/"$NF,"\| gtf2bed \| bedtools getfasta -s -name -fi "$0" -bed - >> "$NF"_CDS.faa"}' | sed "s/.fa |/.gtf |/g" | sed "s/.fa_CDS/_CDS/g" | bash
+cd cds
+ls * | awk '{print "\/stor\/work\/Ochman\/hassan\/tools\/faTrans -stop "$0,$0"t"}' | sed "s/_CDS.faat/_protein.faa/g" | bash
+#CDS, GBRS:
+ls GC*gtf | awk '{print "cat "$NF,"\| gtf2bed \| bedtools getfasta -s -name -fi ..\/genomes\/"$0" -bed - >> "$NF"_CDS.faa"}' | sed "s/.gtf -/_genomic.fna -/g" | sed "s/.gtf_CDS/_CDS/g" | bash
+
+
+awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g"
