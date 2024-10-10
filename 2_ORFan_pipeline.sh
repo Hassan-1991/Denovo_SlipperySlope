@@ -150,12 +150,12 @@ blastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 10
 done
 
 export PERL5LIB=/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/lib/
-
+###########
+#tblastn, contd
 for i in $(ls *tblastn | cut -f1,2 -d "_")
 do
     echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_tblastn > ${i}_tblastn_mviewed"
 done
-
 for i in $(ls *tblastn_mviewed | cut -f1,2 -d "_")
 do
 querylength=$(grep -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.prot.faa | grep -v "^>" | awk '{print length($0)}')
@@ -167,16 +167,41 @@ tail -n+7 "$i"_tblastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$N
 grep -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.prot.faa | sed "s/>/>FULL_/g" >> "$i"_tblastn_seq.faa
 fi
 done
-
 #Remove ones that don't meet this criteria
 wc -l *_tblastn_seq.faa | grep " 4 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
-
 #align
 for i in $(wc -l *tblastn_seq.faa | grep -v " 4 " | grep -v "total" | rev | cut -f1 -d " " | rev); do cut -f 1 -d "(" $i > "$i".aln; done
 
+###########
 
+#blastn, contd
+cd blastn_small
+for i in $(ls *blastn | cut -f1,2 -d "_")
+do
+    echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_blastn > ${i}_blastn_mviewed"
+done
+for i in $(ls *blastn_mviewed | cut -f1,2 -d "_")
+do
+querylength=$(grep -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.faa | grep -v "^>" | awk '{print length($0)}')
+ratio=$(tail -n+8 "$i"_blastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
+if (( $(echo "$ratio > 0.5" | bc -l) ))
+then
+tail -n+9 "$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | seqkit rmdup -s | linear > "$i"_blastn_seq.faa
+tail -n+8 "$i"_blastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$NF}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | head -2 >> "$i"_blastn_seq.faa
+grep -A1 "$i(" ../Ecoli_step4_ORFans.final.besthits.faa | sed "s/>/>FULL_/g" >> "$i"_blastn_seq.faa
+fi
+done
 
 ####Intra-genus section####
+####Intra-genus section####
+####Intra-genus section####
+####Intra-genus section####
+####Intra-genus section####
+####Intra-genus section####
+####Intra-genus section####
+####Intra-genus section####
+
+#Calculate fastANI distances:
 
 /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/fastANI_noncoli_Escherichia.sh
 #Tag distances with species names
@@ -197,23 +222,25 @@ cat GBRS_all_fastANI.tsv /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli
 #All reports of E. coli below 93% are problematic, based on manual NCBI searches of the accessions (different warnings)
 #This comprises our set of non-coli Escherichia genomes
 
+#Download GBRS databases
+
 mkdir 10082024_noncoli_Escherichia_database
 cd 10082024_noncoli_Escherichia_database
 cat ../GBRS_all_fastANI.tsv /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | sort -nrk 2  | awk -F '\t' '($2<97)' | awk -F '\t' '($2<93)' | awk -F '\t' '($2>84)' | grep -v "Escherichia.*coli" | grep -v "sp" | grep "^GC" | cut -f1 | grep -f - ../../GB_assembly_summary_04062024.txt | cut -f20 | awk -F '/' '{print $0"/"$NF"_genomic.fna.gz"}' | sed "s/^/wget /g" 
 cat ../GBRS_all_fastANI.tsv /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | sort -nrk 2  | awk -F '\t' '($2<97)' | awk -F '\t' '($2<93)' | awk -F '\t' '($2>84)' | grep -v "Escherichia.*coli" | grep -v "sp" | grep "^GC" | cut -f1 | grep -f - ../../GB_assembly_summary_04062024.txt | cut -f20 | awk -F '/' '{print $0"/"$NF"_protein.faa.gz"}' | sed "s/^/wget /g" 
 cat ../GBRS_all_fastANI.tsv /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | sort -nrk 2  | awk -F '\t' '($2<97)' | awk -F '\t' '($2<93)' | awk -F '\t' '($2>84)' | grep -v "Escherichia.*coli" | grep -v "sp" | grep "^GC" | cut -f1 | grep -f - ../../GB_assembly_summary_04062024.txt | cut -f20 | awk -F '/' '{print $0"/"$NF"_genomic.fna.gz"}' | sed "s/^/wget /g" 
 
-#ATB:
+#ATB, genome:
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g" | sed "s/^/cat /g" | bash >> ATB_noncoli_Escherichia.faa
 #proteins:
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g" | sed "s/^/prodigal -i /g" | sed "s/$/ -f gff -o/g" | sed "s/.fa -f/.fa\/-f/g" | awk -F '/' '{print $0,$9}' | sed "s/.fa\/-f/.fa -f/g" | sed "s/$/t/g" | sed "s/.fat/.gff/g" > running.sh
 ./parallelize_run.sh
-#For GBRS:
+#get proteins For GBRS:
 cd genomes
 for i in $(ls GCA*genomic.fna | cut -f-2 -d "_"); do prodigal -i "$i"*fna -f gff -o "$i"_prodigal.gff; done
 
-#Convert gff to gtf:
+#Convert gff to gtf for both:
 #ATB:
 for i in $(ls *gff | cut -f1 -d '.'); do grep -v "#" "$i".gff | awk -F '\t' '($3=="CDS")' | awk -F '\t' '{OFS=FS}{print $1,$2,$3,$4,$5,$6,$7,$8,$1}' | rev | cut -f 2- -d "." | rev | awk -F '\t' '{OFS=FS}{print $1,$2,$3,$4,$5,$6,$7,$8,"transcript_id \""$9"_"NR"\";gene_id \""$9"_"NR"\";"}' > "$i".gtf; done
 #GBRS:
@@ -231,7 +258,28 @@ cat ../../GBRS_all_fastANI.tsv /stor/scratch/Ochman/hassan/0318_AllTheBacteria/n
 
 #Make protein database:
 cat proteins/*protein.faa > noncoliEscherichia_proteins.faa
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in noncoliEscherichia_proteins.faa --db noncoliEscherichia_proteins
+#Back to /stor/work/Ochman/hassan/Ecoli_pangenome
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp --ultra-sensitive -q 30547_pan_genome_reference.prot.fa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoliEscherichia_proteins --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --out Ecoli_30547_vs_noncoliEscherichia.tsv -k 0 -b8 -c1
+#Make all genome-databases:
+awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g" | sed "s/^/cat /g" | sed "s/$/ >> noncoliEscherichia_allgenomes.faa/g" | bash
+ls genomes/*fna | sed "s/^/cat /g" | sed "s/$/ >> noncoliEscherichia_allgenomes.faa/g" | bash
 
+#Getorf
+
+#ATG only:
+getorf -sequence noncoliEscherichia_allgenomes.faa -outseq noncoliEscherichia_allgenomes.getorf.ATG -table 0 -minsize 30 -find 1
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in noncoliEscherichia_allgenomes.getorf.ATG --db noncoliEscherichia_allgenomes.getorf.ATG
+#Back to /stor/work/Ochman/hassan/Ecoli_pangenome
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp --ultra-sensitive -q 30547_pan_genome_reference.prot.fa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoliEscherichia_allgenomes.getorf.ATG --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --out Ecoli_1900_step4_ORFans_vs_noncoliEscherichia.tsv -k 0 -b8 -c1
+#all but CTG:
+getorf -sequence noncoliEscherichia_allgenomes.faa -outseq noncoliEscherichia_allgenomes.getorf.allTG -table 1 -minsize 30 -find 3
+seqkit fx2tab noncoliEscherichia_allgenomes.getorf.allTG | grep -P -v "\tCTG" | sed "s/^/>/g" | sed "s/\t/\n/" > noncoliEscherichia_allgenomes.getorf.ATG_TTG_GTG
+
+#grep --no-group-separator -A1 -f non-Escherichia_identifiers.txt all_GBRS_getorf.noCTG > 04072024_nonEscherichia_genomes.getorf.noCTG &&
+
+/stor/work/Ochman/hassan/tools/faTrans -stop 04072024_nonEscherichia_genomes.getorf.noCTG 04072024_nonEscherichia_genomes.getorf.noCTG.prot &&
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in 04072024_nonEscherichia_genomes.getorf.noCTG.prot --db 04072024_nonEscherichia_genomes.getorf.noCTG.prot
 
 #Where are all the ATB genomes? Here:
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g"
