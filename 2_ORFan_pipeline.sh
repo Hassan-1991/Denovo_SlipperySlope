@@ -178,7 +178,7 @@ for i in $(wc -l *tblastn_seq.faa | grep -v " 4 " | grep -v "total" | rev | cut 
 cd blastn_small
 for i in $(ls *blastn | cut -f1,2 -d "_")
 do
-    echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_blastn > ${i}_blastn_mviewed"
+echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_blastn > ${i}_blastn_mviewed"
 done
 for i in $(ls *blastn_mviewed | cut -f1,2 -d "_")
 do
@@ -275,11 +275,27 @@ getorf -sequence noncoliEscherichia_allgenomes.faa -outseq noncoliEscherichia_al
 #all but CTG:
 getorf -sequence noncoliEscherichia_allgenomes.faa -outseq noncoliEscherichia_allgenomes.getorf.allTG -table 1 -minsize 30 -find 3
 seqkit fx2tab noncoliEscherichia_allgenomes.getorf.allTG | grep -P -v "\tCTG" | sed "s/^/>/g" | sed "s/\t/\n/" > noncoliEscherichia_allgenomes.getorf.ATG_TTG_GTG
+#TTG,GTG:
+seqkit fx2tab noncoliEscherichia_allgenomes.getorf.ATG_TTG_GTG | grep -v -P "\tATG" | sed "s/^/>/g" | sed "s/\t/\n/" > noncoliEscherichia_allgenomes.getorf.TTG_GTG
+/stor/work/Ochman/hassan/tools/faTrans noncoliEscherichia_allgenomes.getorf.TTG_GTG noncoliEscherichia_allgenomes.getorf.TTG_GTG.prot.faa
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in noncoliEscherichia_allgenomes.getorf.TTG_GTG --db noncoliEscherichia_allgenomes.getorf.TTG_GTG
+#Back to /stor/work/Ochman/hassan/Ecoli_pangenome
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp --ultra-sensitive -q Ecoli_step4_ORFans.faa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoliEscherichia_allgenomes.getorf.TTG_GTG --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --out Ecoli_1900_step4_ORFans_vs_noncoliEscherichia_TTG_GTG.tsv -k 0 -b8 -c1
 
 #grep --no-group-separator -A1 -f non-Escherichia_identifiers.txt all_GBRS_getorf.noCTG > 04072024_nonEscherichia_genomes.getorf.noCTG &&
 
 /stor/work/Ochman/hassan/tools/faTrans -stop 04072024_nonEscherichia_genomes.getorf.noCTG 04072024_nonEscherichia_genomes.getorf.noCTG.prot &&
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in 04072024_nonEscherichia_genomes.getorf.noCTG.prot --db 04072024_nonEscherichia_genomes.getorf.noCTG.prot
+
+#RESULTS
+awk -F '\t' '($5>60&&$16<0.001)' Ecoli_30547_vs_noncoliEscherichia.tsv | cut -f1 | sort -u > Ecoli_species_specific_nonORFans_step1.txt
+grep -w -F -v -f Ecoli_species_specific_nonORFans_step1.txt Ecoli_step4_ORFans.txt > Ecoli_species_specific_ORFans_step1.txt
+awk -F '\t' '($5>60&&$16<0.001)' Ecoli_1900_step4_ORFans_vs_noncoliEscherichia.tsv | grep -w -F -f Ecoli_species_specific_ORFans_step1.txt | cut -f1 | sort -u > Ecoli_species_specific_nonORFans_step2.txt
+grep -w -F -v -f Ecoli_species_specific_nonORFans_step2.txt Ecoli_species_specific_ORFans_step1.txt > Ecoli_species_specific_ORFans_step2.txt
+awk -F '\t' '($5>60&&$16<0.001)' Ecoli_1900_step4_ORFans_vs_noncoliEscherichia_TTG_GTG.tsv | grep -w -F -f Ecoli_species_specific_ORFans_step2.txt | cut -f1 | sort -u > Ecoli_species_specific_nonORFans_step3.txt
+grep -w -F -v -f Ecoli_species_specific_nonORFans_step3.txt Ecoli_species_specific_ORFans_step2.txt > Ecoli_species_specific_ORFans_step3.txt
+
+#852 species-specific ORFans.
 
 #Where are all the ATB genomes? Here:
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g"
