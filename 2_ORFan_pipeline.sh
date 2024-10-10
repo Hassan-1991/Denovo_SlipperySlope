@@ -224,6 +224,14 @@ cd cds
 ls * | awk '{print "\/stor\/work\/Ochman\/hassan\/tools\/faTrans -stop "$0,$0"t"}' | sed "s/_CDS.faat/_protein.faa/g" | bash
 #CDS, GBRS:
 ls GC*gtf | awk '{print "cat "$NF,"\| gtf2bed \| bedtools getfasta -s -name -fi ..\/genomes\/"$0" -bed - >> "$NF"_CDS.faa"}' | sed "s/.gtf -/_genomic.fna -/g" | sed "s/.gtf_CDS/_CDS/g" | bash
+ls GC*faa | awk '{print "\/stor\/work\/Ochman\/hassan\/tools\/faTrans -stop "$0,$0"t"}' | sed "s/_CDS.faat/_protein.faa/g" | bash
+
+#Contig-genome-taxonomy-ANI put together
+cat ../../GBRS_all_fastANI.tsv /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | sort -k1 | join -1 1 -2 1 - contig_taxonomy.tsv | rev | cut -f2- -d "_" | rev | sed "s/ /\t/" | sed "s/ /\t/" | rev | sed "s/ /\t/" | rev > ../noncoliEscherichia_genomes_ANI_species_contigs.tsv
+
+#Make protein database:
+cat proteins/*protein.faa > noncoliEscherichia_proteins.faa
 
 
+#Where are all the ATB genomes? Here:
 awk -F '\t' '($2<93)' /stor/scratch/Ochman/hassan/0318_AllTheBacteria/noncoli_Escherichia/ATB_noncoli_Escherichia_fastANI.tsv | grep -v "Escherichia_sp" | cut -f1 | grep -f - /stor/scratch/Ochman/hassan/0318_AllTheBacteria/sample2species2file.tsv | awk -F '\t' '{print $3,$1}' | sed "s/.asm.tar.xz /\//g" | sed "s/$/.fa/g" | sed "s/^/\/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\//g"
