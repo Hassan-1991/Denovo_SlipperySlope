@@ -1,0 +1,20 @@
+#Extract alternative frames
+
+linear 30547_pan_genome_reference.fa
+
+awk '/^>/ {print; next} {print substr($0, 2)}' 30547_pan_genome_reference.fa | sed "s/>/>PLUS1_/g" > 30547_pan_genome_reference.altframe.fa
+awk '/^>/ {print; next} {print substr($0, 3)}' 30547_pan_genome_reference.fa | sed "s/>/>PLUS2_/g" >> 30547_pan_genome_reference.altframe.fa
+cat 30547_pan_genome_reference.fa | seqkit seq -r -p | linear | sed "s/>/>MINUS0_/g" >> 30547_pan_genome_reference.altframe.fa
+cat 30547_pan_genome_reference.fa | seqkit seq -r -p | linear | awk '/^>/ {print; next} {print substr($0, 2)}' | sed "s/>/>MINUS1_/g" >> 30547_pan_genome_reference.altframe.fa
+cat 30547_pan_genome_reference.fa | seqkit seq -r -p | linear | awk '/^>/ {print; next} {print substr($0, 3)}' | sed "s/>/>MINUS2_/g" >> 30547_pan_genome_reference.altframe.fa
+
+#Translate
+/stor/work/Ochman/hassan/tools/faTrans 30547_pan_genome_reference.altframe.fa 30547_pan_genome_reference.altframe.prot.fa
+/stor/work/Ochman/hassan/tools/faTrans 30547_pan_genome_reference.fa 30547_pan_genome_reference.prot.fa
+linear 30547_pan_genome_reference.altframe.prot.fa
+linear 30547_pan_genome_reference.prot.fa
+
+#Search
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in 30547_pan_genome_reference.altframe.prot.fa --db 30547_pan_genome_reference.altframe.prot
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp --ultra-sensitive -q 30547_pan_genome_reference.prot.fa -d 30547_pan_genome_reference.altframe.prot --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --out Ecoli_30547_vs_altframe.tsv -k 0 -b8 -c1
+
