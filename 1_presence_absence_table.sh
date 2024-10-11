@@ -1,3 +1,24 @@
+#CLUSTERING METHODS#
+
+#The following method clusters 1,907,201 proteins
+#Of these, 634 are assigned to 2 clusters, while the rest just one cluster
+#This leaves 141,621 proteins that are found in the 419 gff files, unassigned
+#This could be because another protein from the same genome has been included in the cluster
+#Or because searches weren't made against genomes which harbor the gene
+#Using a 80/60/0.001 criteria, a further 27,065 proteins are assigned to unique clusters
+grep -f proteins_missing_in_clusters.tsv 30547_vs_419proteome_ultrasensitive.tsv | awk -F '\t' '($5>60&&$3>80&&$16<0.001)' | cut -f1,2 | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep -v "," | awk -F '\t' '{OFS=FS}{print $2,$1}' > 27065_secondstep_clustering.tsv
+#While 74,554 are assigned to >1 cluster
+grep -f proteins_missing_in_clusters.tsv 30547_vs_419proteome_ultrasensitive.tsv | awk -F '\t' '($5>60&&$3>80&&$16<0.001)' | cut -f1,2 | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep "," | cut -f1 | sort -u | grep -f - 30547_vs_419proteome_ultrasensitive.tsv | awk -F '\t' '($5>60&&$3>80&&$16<0.001)' | cut -f1,2 > 74554_secondstep_clustering.tsv
+#This leaves 40,002 unassigned, for which mmseqs/linclust was run (80/60 mode), finding 7214 unique sequences
+mmseqs createdb 40002_nocluster.faa 40002_nocluster
+mmseqs search 40002_nocluster 40002_nocluster resultDB tmp --min-seq-id 0.8 -c 0.6 --cov-mode 1
+mmseqs convertalis 40002_nocluster 40002_nocluster resultDB resultDB.m8
+mmseqs linclust 40002_nocluster clusterDB tmp --min-seq-id 0.8 -c 0.6 --cov-mode 1
+mmseqs createtsv 40002_nocluster 40002_nocluster clusterDB 40002_clusters.tsv
+awk '{if ($1 != prev) {count++; prev=$1}; print count, $0}' 40002_clusters.tsv | sed "s/^/mmseqs_/g" | sed "s/ /\t/g" > 40002_clusters.reps.tsv
+#Final list of gene-cluster assignments:
+cut -f1,3 40002_clusters.reps.tsv | cat - 74554_secondstep_clustering.tsv 27065_secondstep_clustering.tsv protein_clusters.tsv | cut -f-2 > 041124_all_protein_clusters.tsv
+#For the ORFan analysis, all I need to is search the 7214 new clusters/representative sequences
 #Methodology for generating a (i) pangenome, and a (ii) presence/absence table for E. coli:
 
 """1. Download 500 genomes used in the ipoppunk paper
