@@ -100,6 +100,8 @@ done | awk '{print $0"_"int((NR-1)/40)+1}' | split -l 40
 ls x* | sed "s/^/bash /g" > running.sh
 ./parallelize_run.sh
 
+cat step2_ORFans_geneflanks.faa_* > step2_ORFans_geneflanks.faa
+
 #SIDEBAR
 #For assigning taxonomic restriction to all genes:
 cat ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xaa ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xab ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xac ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xad | awk -F '\t' '($5>60&&$16<0.001)' | cut -f1,2 > all_nonEscherichia_hits_query_targets.tsv
