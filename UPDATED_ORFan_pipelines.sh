@@ -102,6 +102,66 @@ ls x* | sed "s/^/bash /g" > running.sh
 
 cat step2_ORFans_geneflanks.faa_* > step2_ORFans_geneflanks.faa
 
+blastn -query step2_ORFans_proxflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out step2_ORFans_proxflanks_blastn
+cat step2_ORFans_proxflanks_blastn | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | cut -f 1 -d "@" | awk -F '_' '{OFS="\t"}{print $1,$0}' | sed "s/left500_//g" | sed "s/right500_//g" | awk -F '\t' '{OFS=""}{print $1,"\t",$2,"%",$3}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep "left.*right" | cut -f 1 | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > step2_ORFans_proxflanks_targets.txt
+blastn -query step2_ORFans_geneflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out step2_ORFans_geneflanks_blastn
+cat step2_ORFans_geneflanks_blastn | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | cut -f 1 -d "@" | sed "s/_up_/%up%/g" | sed "s/_down_/%down%/g" | awk -F "\t" '{OFS=""}{print $1,"%",$2}' | awk -F '%' '{OFS=""}{print $2,"_",$3,"\t",$1,"%",$4}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | egrep "up.*down|down.*up" | cut -f 1 | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > step2_ORFans_geneflanks_targets.txt
+
+for i in $(cut -f 1 -d "(" step2_ORFans_proxflanks_targets.txt)
+do
+grep "$i(" step2_ORFans_proxflanks_targets.txt | sed "s/,/\n/g" | sed "s/)\t/)\n/g" | sed "s/^ *//g" | tail -n+2 > "$i"_step2_ORFans_proxflanks_targetlist.txt
+grep -f "$i"_step2_ORFans_proxflanks_targetlist.txt step2_ORFans_proxflanks_blastn | grep "$i(" | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | awk -F'\t' 'BEGIN { OFS = "\t" } { sub(/@.*$/, "", $2); print }' | cut -f 2- -d "_" | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' > "$i"_step2_ORFans_proxflanks_intervalinfo
+done
+
+for i in $(cut -f 1 step2_ORFans_geneflanks_targets.txt)
+do
+grep -P "$i\t" step2_ORFans_geneflanks_targets.txt | sed "s/,/\n/g" | sed "s/\t/\n/g" | sed "s/^ *//g" | tail -n+2 > "$i"_step2_ORFans_geneflanks_targetlist.txt
+grep -f "$i"_step2_ORFans_geneflanks_targetlist.txt step2_ORFans_geneflanks_blastn | grep "$i"_ | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | awk -F'\t' 'BEGIN { OFS = "\t" } { sub(/@.*$/, "", $2); print }' | sed "s/_up/%up/g" | sed "s/_down/%down/g" | cut -f 2- -d "%" | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}'  | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' | awk -F '\t' '($4<10000)' > "$i"_step2_ORFans_geneflanks_intervalinfo
+done
+
+for i in $(ls *prox*info | cut -f1,2 -d "_")
+do
+    value2=$(grep "$i" step2_ORFans_besthits.gtf | awk -F '\t' '{print $5-$4+1}')
+    sed -i "s/$/ $value2/" "$i"_step2_ORFans_proxflanks_intervalinfo
+done
+
+for i in $(ls *gene*info | cut -f1,2 -d "_")
+do
+    value2=$(grep "$i" step2_ORFans_besthits.gtf | awk -F '\t' '{print $5-$4+1}')
+    sed -i "s/$/ $value2/" "$i"_step2_ORFans_geneflanks_intervalinfo
+done
+
+#sidebar: meaningful flanks for comparative analysis between ORFans and non-ORFans
+for i in $(ls *prox*info | cut -f1,2 -d "_"); do awk '(($4<($6+600))&&($4>($6*0.5)))' "$i"_step2_ORFans_proxflanks_intervalinfo > "$i"_step2_ORFans_proxflanks_intervalinfo_2; done
+for i in $(ls *gene*info | cut -f1,2 -d "_"); do awk '(($4<($6+2000))&&($4>($6*0.5)))' "$i"_step2_ORFans_geneflanks_intervalinfo > "$i"_step2_ORFans_geneflanks_intervalinfo_2; done
+find . -type f -empty -delete
+
+#At this point, the two streams can hopefully join
+
+for i in $(ls *intervalinfo_2 | cut -f1,2 -d "_" | sort -u); do ls *"$i"_*intervalinfo_2 | sed "s/^/cat /g" | bash >> "$i"_joint_intervalcoords; done
+
+#########
+
+#Intra-genus searches
+#Fill out an excel sheet with present non-coding, no flanks and flanks states
+
+cat all_proteins_vs_noncoliEscherichia_annotated.tsv all_proteins_vs_noncoliEscherichia_ORFs_TTG_GTG.tsv all_proteins_vs_noncoliEscherichia_ORFs_ATG.tsv | grep -w -f step2_ORFans_besthits.repseqversion.txt > step2_ORFans_besthits.noncoliEscherichia_hits_interim.tsv
+awk -F '\t' '($5>60&&$16<0.001)' step2_ORFans_besthits.noncoliEscherichia_hits_interim.tsv | cut -f1,2 | sort -u > step2_ORFans_besthits.noncoliEscherichia_hits.tsv
+sed "s/ /_/g" noncoliEscherichia_genomes_ANI_species_contigs.tsv | sort -k4 | join -1 4 -2 2 - step2_ORFans_besthits.noncoliEscherichia_hits.tsv_interim | awk '{OFS=FS}{print $NF,$(NF-1)}' | sed "s/Escherichia /Escherichia_/g" | sed "s/ /\t/" | sed "s/_KF1//g" | sed "s/_ATCC_35469//g" | sort -u | awk '{print $2,$1}' | sed "s/ /\t/g" | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' > Escherichia_presence_absence_interim.tsv
+
+awk '{
+    fergusonii = ($0 ~ /fergusonii/) ? 1 : 0;
+    ruysiae = ($0 ~ /ruysiae/) ? 1 : 0;
+    marmotae = ($0 ~ /marmotae/) ? 1 : 0;
+    whittamii = ($0 ~ /whittamii/) ? 1 : 0;
+    albertii = ($0 ~ /albertii/) ? 1 : 0;
+    print $1, fergusonii "," ruysiae "," marmotae "," whittamii "," albertii
+}' Escherichia_presence_absence_interim.tsv > Escherichia_presence_absence.tsv
+
+cut -f1 -d " " Escherichia_presence_absence.tsv | grep -v -w -f - step2_ORFans_besthits.repseqversion.txt | sed "s/$/ 0,0,0,0,0/g" >> Escherichia_presence_absence.tsv
+
+#Next steps: think about how to fill in the 0s
+
 #SIDEBAR
 #For assigning taxonomic restriction to all genes:
 cat ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xaa ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xab ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xac ../diamond_searches/all_proteins_vs_GBRS_annotated.tsv_xad | awk -F '\t' '($5>60&&$16<0.001)' | cut -f1,2 > all_nonEscherichia_hits_query_targets.tsv
