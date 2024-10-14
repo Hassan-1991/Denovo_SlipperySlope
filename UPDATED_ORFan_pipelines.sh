@@ -102,6 +102,12 @@ ls x* | sed "s/^/bash /g" > running.sh
 
 cat step2_ORFans_geneflanks.faa_* > step2_ORFans_geneflanks.faa
 
+#Prepare the best hit sequences (DNA and protein) for later steps:
+cat step2_ORFans_besthits.gtf | gtf2bed | bedtools getfasta -s -name -fi ../500_gffs/all_500_genomes.fasta -bed - > step2_ORFans_wflanks_besthits.faa
+/stor/work/Ochman/hassan/tools/faTrans step2_ORFans_wflanks_besthits.faa step2_ORFans_wflanks_besthits.prot.faa
+
+#Flank part begins
+
 blastn -query step2_ORFans_proxflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out step2_ORFans_proxflanks_blastn
 cat step2_ORFans_proxflanks_blastn | awk -F'\t' -v OFS='\t' '{$2 = $2 "@"}1' | cut -f 1 -d "@" | awk -F '_' '{OFS="\t"}{print $1,$0}' | sed "s/left500_//g" | sed "s/right500_//g" | awk -F '\t' '{OFS=""}{print $1,"\t",$2,"%",$3}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | grep "left.*right" | cut -f 1 | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > step2_ORFans_proxflanks_targets.txt
 blastn -query step2_ORFans_geneflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out step2_ORFans_geneflanks_blastn
@@ -140,6 +146,84 @@ find . -type f -empty -delete
 
 for i in $(ls *intervalinfo_2 | cut -f1,2 -d "_" | sort -u); do ls *"$i"_*intervalinfo_2 | sed "s/^/cat /g" | bash >> "$i"_joint_intervalcoords; done
 
+#Make DB out of intervals
+
+for variable in $(ls *_joint_intervalcoords | rev | cut -f 3- -d "_" | rev); do
+    command="grep \"plus\" ${variable}_joint_intervalcoords | awk '{OFS=\"\"}{print \"samtools faidx /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$2,\"-\",\$3}' | sed \"s/\$/ >> ${variable}_interval.faa/g\" && grep \"minus\" ${variable}_joint_intervalcoords | awk '{OFS=\"\"}{print \"samtools faidx -i /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$2,\"-\",\$3}' | sed \"s/\$/ >> ${variable}_interval.faa/g\""
+    output_file="${variable}_joint_samtools.sh"
+    bash -c "$command" > "$output_file"
+done
+
+ls *_joint_samtools.sh | sed "s/^/bash /g" > running_sam.sh
+
+#Make databases out of intervals
+for i in $(ls *_interval.faa | cut -f1,2 -d "_")
+do
+makeblastdb -in "$i"_interval.faa -dbtype nucl -out "$i"_interval
+done
+
+#tblastn
+for i in $(ls *_interval.faa | cut -f1,2 -d "_")
+do
+grep --no-group-separator -A1 "$i" ../step2_ORFans_wflanks_besthits.prot.faa |
+tblastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 1000000 -num_alignments 1000000 -evalue 200000 -out "$i"_interval_tblastn
+done
+
+#blastn
+for i in $(ls *_interval.faa | cut -f1,2 -d "_")
+do
+grep --no-group-separator -A1 "$i(" ../step2_ORFans_wflanks_besthits.faa |
+blastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 1000000 -num_alignments 1000000 -evalue 200000 -out "$i"_interval_blastn -word_size 7
+done
+
+export PERL5LIB=/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/lib/
+
+#tblastn, contd
+for i in $(ls *_interval_tblastn | cut -f1,2 -d "_")
+do
+    echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_tblastn > ${i}_tblastn_mviewed"
+done
+for i in $(ls *tblastn_mviewed | cut -f1,2 -d "_")
+do
+querylength=$(grep -A1 "$i(" ../step2_ORFans_wflanks_besthits.prot.faa | grep -v "^>" | awk '{print length($0)}')
+ratio=$(tail -n+7 "$i"_tblastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
+if (( $(echo "$ratio > 0.5" | bc -l) ))
+then
+tail -n+8 "$i"_tblastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | seqkit rmdup -s | linear > "$i"_tblastn_seq.aln
+tail -n+7 "$i"_tblastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$NF}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | head -2 >> "$i"_tblastn_seq.aln
+grep -A1 "$i(" ../step2_ORFans_wflanks_besthits.prot.faa | sed "s/>/>FULL_/g" >> "$i"_tblastn_seq.aln
+fi
+done
+#Remove ones that don't meet this criteria
+wc -l *_tblastn_seq.aln | grep " 4 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
+
+#blastn, contd
+for i in $(ls *_interval_blastn | cut -f1,2 -d "_")
+do
+echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast ${i}_interval_blastn > ${i}_blastn_mviewed"
+done
+for i in $(ls *_blastn_mviewed | cut -f1,2 -d "_")
+do
+querylength=$(grep -A1 "$i(" ../step2_ORFans_wflanks_besthits.faa | grep -v "^>" | awk '{print length($0)}')
+ratio=$(tail -n+8 "$i"_blastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
+if (( $(echo "$ratio > 0.5" | bc -l) ))
+then
+tail -n+9 "$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | seqkit rmdup -s | linear > "$i"_blastn_seq.faa
+tail -n+8 "$i"_blastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$NF}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | head -2 >> "$i"_blastn_seq.faa
+grep -A1 "$i(" ../step2_ORFans_wflanks_besthits.faa | sed "s/>/>FULL_/g" >> "$i"_blastn_seq.faa
+fi
+done
+wc -l *_blastn_seq.faa | grep " 4 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
+
+#macse
+ls *_blastn_seq.faa | awk '{OFS=""}{print "java -jar \/stor\/work\/Ochman\/hassan\/tools\/macse_v2.06.jar -prog alignSequences -fs 1000 -fs_term 1000 -stop 100 -seq ",$1," -out_NT ",$1,"_NT.aln -out_AA ",$1,"_AA.aln"}' > running.sh
+
+#For tallying purposes, I should make a tsv with the cluster and their best hits for genus-specific ORFans
+cut -f2 -d "\"" step2_ORFans_besthits.gtf | grep -w -f - all_best_hits.final.tsv | sed "s/\t/%/g" | sed "s/@/%/g" | egrep ")$" | cut -f1,3 -d "%" | sed "s/%/\t/g" | cut -f1 -d "(" > step2_ORFans_besthits.tsv
+cut -f2 -d "\"" step2_ORFans_besthits.gtf | grep -w -f - all_best_hits.final.tsv | grep -v ")$" >> step2_ORFans_besthits.tsv
+awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' step2_ORFans_besthits.tsv > step2_ORFans_besthits.final.tsv
+
+
 #########
 
 #Intra-genus searches
@@ -161,6 +245,7 @@ awk '{
 cut -f1 -d " " Escherichia_presence_absence.tsv | grep -v -w -f - step2_ORFans_besthits.repseqversion.txt | sed "s/$/ 0,0,0,0,0/g" >> Escherichia_presence_absence.tsv
 
 #Next steps: think about how to fill in the 0s
+#Will have to tally meaningful flank presence/absence similarly as well
 
 #SIDEBAR
 #For assigning taxonomic restriction to all genes:
