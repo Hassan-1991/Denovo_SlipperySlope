@@ -45,15 +45,15 @@ python3 lineage_presenceabsence_parser.py AABIHECD_00503_42_lineage_presence_abs
 
 #Newick file of all lineages:
 
-A,B1,E:
-
+#Paste the following in raw_phylogeny.nwk:
 (((((((((((((((((ESC GA9113AA AS,ESC JA4591AA AS),ESC PA2004AA AS),SRR7283764 TRIMMED),(ESC PA2318AA AS,SRR7367225 TRIMMED)),SRR5031203 TRIMMED),((SRR7186949 TRIMMED,ESC RA4296AA AS),7748 7#47)),((7790 1#64,ESC HA6177AA AS),ESC QA2206AA AS)),SRR7186910 TRIMMED),(ESC HA3950AA AS,SRR7215958 TRIMMED)),11791 3#6),SRR7290889 TRIMMED),ESC CA5569AA AS),SRR5006334 TRIMMED),ESC GA9425AA AS),((SRR7236613 TRIMMED,ESC HA3288AA AS),ESC JA4735AA AS)),((ESC QA2893AA AS,SRR7367461 TRIMMED),ESC JA5404AA AS)),((((((11657 6#33,ESC HA7438AA AS),11657 5#60),(((((((((11679 5#79,11679 7#17),ESC JA4720AA AS),11679 7#36),JSNL00000000),12045 3#57),((11679 6#14,ESC HA8660AA AS),11679 7#78)),ESC PA9513AA AS),((11658 3#8,ESC BA1344AA AS),11657 5#57))))),(((SRR7251057 TRIMMED,ESC RA2561AA AS),ESC BA5409AA AS),(59235 G01 CONTIGS HGAP 4 0,ESC HA8654AA AS))))
 
-B2,D,F:
-((((((11657 6#33,ESC HA7438AA AS),11657 5#60),(((((((((11679 5#79,11679 7#17),ESC JA4720AA AS),11679 7#36),JSNL00000000),12045 3#57),((11679 6#14,ESC HA8660AA AS),11679 7#78)),ESC PA9513AA AS),((11658 3#8,ESC BA1344AA AS),11657 5#57)))),(((SRR7251057 TRIMMED,ESC RA2561AA AS),ESC BA5409AA AS),(59235 G01 CONTIGS HGAP 4 0,ESC HA8654AA AS))))
-D:
+#Get lineage+phylogroup designation:
+sed "s/)/\n/g" raw_phylogeny.nwk | sed "s/,/\n/g" | tr -d "(" | sed '/^$/d' | sed "s/ /_/g" | grep -i -f - ../../../../419_ipp_lineagedesignations.tsv | awk -F '\t' '{OFS=FS}{print $1,$2"_"$5}' > 41_rawphylogeny_lineages_designation.tsv
+sed -i "s/ /_/g" raw_phylogeny.nwk
+python3 nwk_parser.py raw_phylogeny.nwk 41_rawphylogeny_lineages_designation.tsv
 
-B2:
+#Manually remove those that aren't in the OG 41 lineages
 
-
+((((((((((((((B1_5,B1_1),B1_13),(B1_6,B1_15)),((B1_3,B1_19),(B1_16,B1_26))),B1_2),(B1_21,B1_41)),C_4),B1_17),B1_38),S2_22),S1_24),((A_43,A_9),A_25)),((E_20,E_11),E_29)),((((((F_14,F_18),F_42),(((((((((B2_8,B2_23),B2_39),11679_7#36),jsnl00000000),12045_3#57),((B2_40,B2_30),B2_27)),B2_28),((B2_10,B2_12),B2_44))))),(((D_7,D_35),D_37),(D_34,D_32))))
 
