@@ -4,6 +4,8 @@
 #3. gtf files extracted from them
 #4. Lineage designations from paper supp - 500_ipp_lineagedesignations.tsv
 
+#All operations in /stor/work/Ochman/hassan/Ecoli_pangenome/103024_updated_pipeline
+
 #All 450 this time
 
 mkdir /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_cds
@@ -23,30 +25,27 @@ mmseqs convertalis all_450_proteins all_450_proteins resultDB resultDB.m8
 mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 1
 mmseqs createtsv all_450_proteins all_450_proteins clusterDB all_450_proteins.clusters.tsv
 
-####THE PREVIOUS STEPS ARE RUNNING####
-
 #Get representative protein sequences:
-
-cut -f1 all_500_proteins.clusters.tsv | sort -u > clustered_ids.txt
-faSomeRecords all_500_proteins.faa clustered_ids.txt clustered_representative_proteins.faa
+cut -f1 all_450_proteins.clusters.tsv | sort -u > clustered_ids.txt
+faSomeRecords all_450_proteins.faa clustered_ids.txt clustered_representative_proteins.faa
 
 #I don't have ORF databases for all 500 genomes
-cd /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/
-getorf -sequence all_500_genomes.fasta -outseq all_500_genomes.getorf.all -table 1 -minsize 30 -find 3
-seqkit fx2tab all_500_genomes.getorf.all | grep -P -v "\tCTG" | sed "s/^/>/g" | sed "s/\t/\n/" > all_500_genomes.getorf.ATG_TTG_GTG
-/stor/work/Ochman/hassan/tools/faTrans -stop all_500_genomes.getorf.ATG_TTG_GTG  all_500_genomes.getorf.ATG_TTG_GTG.prot.faa
-/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in all_500_genomes.getorf.ATG_TTG_GTG.prot.faa --db all_500_genomes.getorf.ATG_TTG_GTG.prot
+awk -F '\t' '($5<45)' /stor/work/Ochman/hassan/Ecoli_pangenome/500_ipp_lineagedesignations.tsv | cut -f1 | sort -u | sed "s/^/cat \/stor\/work\/Ochman\/hassan\/Ecoli_pangenome\/500_gffs\/500_genomes\//g"  | sed "s/$/.fasta >> all_450_genomes.faa/g" | bash
+getorf -sequence all_450_genomes.faa -outseq all_450_genomes.getorf.all -table 1 -minsize 30 -find 3
+seqkit fx2tab all_450_genomes.getorf.all | grep -P -v "\tCTG" | sed "s/^/>/g" | sed "s/\t/\n/" > all_450_genomes.getorf.ATG_TTG_GTG
+/stor/work/Ochman/hassan/tools/faTrans -stop all_450_genomes.getorf.ATG_TTG_GTG all_450_genomes.getorf.ATG_TTG_GTG.prot.faa
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in all_450_genomes.getorf.ATG_TTG_GTG.prot.faa --db all_450_genomes.getorf.ATG_TTG_GTG.prot
+
 #Likewise for annotated
-cd /stor/work/Ochman/hassan/Ecoli_pangenome/103024_updated_pipeline
-/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in all_500_proteins.faa --db all_500_proteins
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in all_450_proteins.faa --db all_450_proteins
 
 #Automatic searches:
 
-#Outside genus, annotated
+#Outside genus, annotated (running)
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp -q clustered_representative_proteins.faa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_proteins/04072024_nonEscherichia_protein --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --ultra-sensitive --out all_proteins_vs_GBRS_annotated.tsv -k 0 -b8 -c1
-#Outside genus, ORFs
+#Outside genus, ORFs (running)
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp -q clustered_representative_proteins.faa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes.getorf.noCTG.prot --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --ultra-sensitive --out all_proteins_vs_GBRS_ORFs.tsv -k 0 -b8 -c1
-#Outside species, annotated
+#Outside species, annotated (running)
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp -q clustered_representative_proteins.faa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoliEscherichia_proteins --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --ultra-sensitive --out all_proteins_vs_noncoliEscherichia_annotated.tsv -k 0 -b8 -c1
 #Outside species, ORFs_ATG
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp -q clustered_representative_proteins.faa -d /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoliEscherichia_allgenomes.getorf.ATG --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --ultra-sensitive --out all_proteins_vs_noncoliEscherichia_ORFs_ATG.tsv -k 0 -b8 -c1
