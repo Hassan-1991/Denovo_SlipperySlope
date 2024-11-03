@@ -57,6 +57,73 @@ seqkit fx2tab all_450_genomes.getorf.all | grep -P -v "\tCTG" | sed "s/^/>/g" | 
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp -q clustered_representative_proteins.faa -d all_450_genomes.getorf.ATG_TTG_GTG.prot --outfmt 6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps qstart qend sstart send qlen slen evalue bitscore --ultra-sensitive --out all_proteins_vs_pangenome_ORFs.tsv -k 0 -b8 -c1
 
 #Restrict analysis to genus-specific ORFans:
-cat all_proteins_vs_GBRS_annotated.tsv all_proteins_vs_GBRS_ORFs.tsv | awk -F '\t' '($5>60&&$16<0.001)' | cut -f1 | sort -u > step1_genusspecific_nonORFan.txt && faSomeRecords clustered_representative_proteins.faa step1_genusspecific_ORFans.txt step1_genusspecific_ORFans.faa
+cat all_proteins_vs_GBRS_annotated.tsv all_proteins_vs_GBRS_ORFs.tsv | awk -F '\t' '($5>60&&$16<0.001)' | cut -f1 | sort -u > step1_genusspecific_nonORFan.txt
+grep -vf step1_genusspecific_nonORFan.txt clustered_representative_proteins.faa | grep "^>" | tr -d ">" > step1_genusspecific_ORFan.txt
+faSomeRecords clustered_representative_proteins.faa step1_genusspecific_ORFan.txt step1_genusspecific_ORFans.faa
 
+#Get flanks for these proteins
+
+#I need to know whether the upstream and downstream flanks of these proteins are consistent, i.e. belong to the same cluster:
+
+mkdir flank_tangent
+cp all_450_proteins.clusters.tsv flank_tangent
+cp step1_genusspecific_ORFan.txt flank_tangent
+for i in $(cut -f2- -d "@" step1_genusspecific_ORFan.txt | cut -f1 -d "(")
+do
+    echo "awk -v var=\"${i}\" -F '\t' '(\$1~var)' all_450_proteins.clusters.tsv | cut -f3 -d \"@\" | cut -f1 -d \"(\" | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d \":\" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -id -io | awk -F '\t' '(\$12==\"CDS\")' | cut -f2,6 -d '\"' | sed 's/\"/\t/g' | cut -f2 | grep -f - all_450_proteins.clusters.tsv | cut -f1 | sort -u > ${i}_upstream_cluster"
+    echo "awk -v var=\"${i}\" -F '\t' '(\$1~var)' all_450_proteins.clusters.tsv | cut -f3 -d \"@\" | cut -f1 -d \"(\" | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d \":\" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -iu -io | awk -F '\t' '(\$12==\"CDS\")' | cut -f2,6 -d '\"' | sed 's/\"/\t/g' | cut -f2 | grep -f - all_450_proteins.clusters.tsv | cut -f1 | sort -u > ${i}_downstream_cluster"
+done
+
+#Those that have the same flanks:
+wc -l *stream_cluster | head -n-1 | sort -k2 | awk '{if (NR % 2 == 1) printf "%s", $0; else printf "\t%s\n", $0}' | awk '($1==$3&&$1==1)' | rev | cut -f1 -d " " | rev | cut -f1,2 -d "_" | sort -u > only_one_flank.txt
+#remove those:
+sed "s/^/mv /g" only_one_flank.txt | sed "s/$/\* trash/g" | bash
+#Then:
+#These are the ones with one consistent flank, and no other flank
+wc -l *cluster | head -n-1 | sort -k2 | awk '{if (NR % 2 == 1) printf "%s", $0; else printf "\t%s\n", $0}' | grep " 0 " | awk '(($1==1&&$3==0)||($1==0&&$3==1))' | rev | cut -f1 -d " " | rev | cut -f1,2 -d "_" | sort -u > oneflank_missing.txt
+sed "s/^/mv /g" oneflank_missing.txt | sed "s/$/\* trash/g" | bash
+#These are the ones with no flanks anywhere:
+wc -l *cluster | head -n-1 | sort -k2 | awk '{if (NR % 2 == 1) printf "%s", $0; else printf "\t%s\n", $0}' | awk '($1==$3&&$1==0)' | rev | cut -f1 -d " " | rev | cut -f1,2 -d "_" | sort -u > bothflank_missing.txt
+sed "s/^/mv /g" bothflank_missing.txt | sed "s/$/\* trash/g" | bash
+#The inconsistent flanks worth investigating:
+ls *cluster | cut -f1,2 -d "_" | sort -u > inconsistent_flanks.txt
+sed "s/^/mv /g" inconsistent_flanks.txt | sed "s/$/\* trash/g" | bash
+#Small fraction that has one inconsistent flank and one missing flank:
+sed "s/^/ls trash\//g" inconsistent_flanks.txt | sed "s/$/\*/g" | bash | sed "s/^/wc -l /g" | bash | awk '{if (NR % 2 == 1) printf "%s", $0; else printf "\t%s\n", $0}' | grep -P "\t0 " | rev | cut -f1 -d " " | rev | cut -f2- -d "/" | cut -f1,2 -d "_" > inconsistent_AND_missing_flanks.txt
+grep -vf inconsistent_AND_missing_flanks.txt inconsistent_flanks.txt > inconsistent_flanks_worth_investigating.txt
+
+#Make a list of each cluster to which upstream and downstream flanks belong to:
+
+for j in $(cat inconsistent_flanks_worth_investigating.txt)
+do
+for i in $(grep "$j" all_450_proteins.clusters.tsv | cut -f3- -d "@" | cut -f1 -d "(")
+do
+echo "$i" > temp
+grep "$i" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d ":" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -id -io | awk -F '\t' '($12=="CDS")' | cut -f6 -d "\"" >> temp
+grep "$i" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d ":" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -id -io | awk -F '\t' '($12=="CDS")' | cut -f6 -d "\"" | grep -f - all_450_proteins.clusters.tsv | cut -f1 | sort -u >> temp
+grep "$i" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d ":" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -iu -io | awk -F '\t' '($12=="CDS")' | cut -f6 -d "\"" >> temp
+grep "$i" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d ":" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -iu -io | awk -F '\t' '($12=="CDS")' | cut -f6 -d "\"" | grep -f - all_450_proteins.clusters.tsv | cut -f1 | sort -u >> temp
+paste -sd, temp | sed "s/,/\t/g" >> "$j"_flank_analysis
+grep -E '^([^@]*@){2}[^@]*$' "$j"_flank_analysis | cut -f3,5 | sort -u > "$j"_flanks
+rm "$j"_flank_analysis
+done
+done
+
+for j in $(cat inconsistent_flanks_worth_investigating.txt)
+do
+    echo "#!/bin/bash" > "$j".sh  # Start each script with a shebang
+    echo "for i in \$(grep \"$j\" all_450_proteins.clusters.tsv | cut -f3- -d \"@\" | cut -f1 -d \"(\")" >> "$j".sh
+    echo "do" >> "$j".sh
+    echo "    echo \"\$i\" > ${j}_temp" >> "$j".sh
+    echo "    grep \"\$i\" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d \":\" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -id -io | awk -F '\t' '(\$12==\"CDS\")' | cut -f6 -d '\"' >> ${j}_temp" >> "$j".sh
+    echo "    grep \"\$i\" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d \":\" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -id -io | awk -F '\t' '(\$12==\"CDS\")' | cut -f6 -d '\"' | grep -f - all_450_proteins.clusters.tsv | cut -f1 | sort -u >> ${j}_temp" >> "$j".sh
+    echo "    grep \"\$i\" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d \":\" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -iu -io | awk -F '\t' '(\$12==\"CDS\")' | cut -f6 -d '\"' >> ${j}_temp" >> "$j".sh
+    echo "    grep \"\$i\" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/* | cut -f2- -d \":\" | bedtools sort -i - | bedtools closest -a - -b /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf -D a -iu -io | awk -F '\t' '(\$12==\"CDS\")' | cut -f6 -d '\"' | grep -f - all_450_proteins.clusters.tsv | cut -f1 | sort -u >> ${j}_temp" >> "$j".sh
+    echo "    paste -sd, ${j}_temp | sed \"s/,/\\\t/g\" >> ${j}_flank_analysis" >> "$j".sh
+    echo "    grep -E '^([^@]*@){2}[^@]*\$' ${j}_flank_analysis | cut -f3,5 | sort -u > ${j}_flanks" >> "$j".sh
+    echo "done" >> "$j".sh
+done
+
+ls *.sh | sed "s/^/bash /g" > running.sh
+/stor/work/Ochman/hassan/tools/parallelize_run.sh
 
