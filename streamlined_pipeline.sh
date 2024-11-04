@@ -19,6 +19,8 @@ done
 #Do clustering solely based on mmseqs2 criteria
 
 cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_proteins/*prot.faa > all_450_proteins.faa
+cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_cds/*.faa > all_450_CDS.faa
+linear all_450_CDS.faa
 mmseqs createdb all_450_proteins.faa all_450_proteins
 mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 1
 mmseqs convertalis all_450_proteins all_450_proteins resultDB resultDB.m8
@@ -68,6 +70,7 @@ faSomeRecords clustered_representative_proteins.faa step1_genusspecific_ORFan.tx
 mkdir flank_tangent
 cp all_450_proteins.clusters.tsv flank_tangent
 cp step1_genusspecific_ORFan.txt flank_tangent
+cp all_450_CDS.faa flank_tangent
 #Make a list of each cluster to which upstream and downstream flanks belong to:
 
 for j in $(cat step1_genusspecific_ORFan.txt)
@@ -88,10 +91,35 @@ done
 ls *.sh | sed "s/^/bash /g" > running.sh
 /stor/work/Ochman/hassan/tools/parallelize_run.sh
 
+#Extract gene flanks #running
+
+for j in $(cat step1_genusspecific_ORFan.txt | cut -f2- -d "@" | cut -f1 -d "(")
+do
+for i in $(cat -n "$j"_flanks | sed "s/^ *//g" | sed "s/\t/,/g")
+do
+linenumber=$(echo $i | cut -f1 -d ',')
+echo $i | cut -f2 -d ',' | grep --no-group-separator -A1 -f - all_450_CDS.faa | sed "s/>/>"$j"_"$linenumber"_up_/g" >> geneflanks.faa
+echo $i | cut -f3 -d ',' | grep --no-group-separator -A1 -f - all_450_CDS.faa | sed "s/>/>"$j"_"$linenumber"_down_/g" >> geneflanks.faa
+done
+done
+
+#Extract prox flank orthologs:
+
+for j in $(cat step1_genusspecific_ORFan.txt | cut -f2- -d "@" | cut -f1 -d "(")
+do
+for i in $(grep -E '^([^@]*@){2}[^@]*$' "$j"_flank_analysis | awk -F '\t' '{print $0,$3"_"$5}' | awk '!seen[$6]++' | cat -n | sed "s/^ *//g" | sed "s/\t/,/g")
+do
+linenumber=$(echo $i | cut -f1 -d ',' )
+echo $i | cut -f2 -d ',' | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf | sed "s/ \"/ \""$j"_"$linenumber"_/g" >> proxflanks_interim.gtf
+done
+done
+
+
+
+
+
+#
 for i in $(ls /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_genomes/*fasta); do seqkit fx2tab $i; done | awk -F '\t' '{OFS=FS}{print $1,length($2)}' >> all_contig_lengths.tsv
 sort -k1 all_contig_lengths.tsv -o all_contig_lengths.tsv
 cat step1_genusspecific_ORFan.txt | cut -f 2- -d "@" | cut -f1 -d "(" | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/*gtf | cut -f9- -d '/' | sed "s/:/\t/g" | sed "s/\.gtf//g" | cut -f1,2,6,7,11 | cut -f1 -d ";" | tr -d "\"" | sed "s/transcript_id//g" | sort -k2 | join -1 2 -2 1 - all_contig_lengths.tsv > contig_genome_genestart_geneend_genename_contiglength.tsv
 cut -f 5 -d " " contig_genome_genestart_geneend_genename_contiglength.tsv | grep -f - all_450_proteins.clusters.tsv | sed "s/\t/@/g" | cut -f1,2,4 -d "@" | rev | sed "s/@/\t/" | rev | sed "s/(+)$//g" | sed "s/(-)$//g" | sort -k2 | join -1 2 -2 5 - contig_genome_genestart_geneend_genename_contiglength.tsv | sed "s/ /\t/g" > genename_cluster_contig_genome_start_end_contiglength.tsv
-
-
-
