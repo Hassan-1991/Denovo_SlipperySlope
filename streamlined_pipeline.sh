@@ -135,6 +135,32 @@ blastn -query proxflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Gen
 blastn -query proxflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoliEscherichia_allgenomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out proxflanks_intragenus_blastn
 blastn -query proxflanks.faa -db /stor/work/Ochman/hassan/Ecoli_pangenome/103024_updated_pipeline/backup/all_450_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out proxflanks_pangenome_blastn
 
+mkdir flanks
+cp *_blastn flanks
+
+#targets:
+
+cat proxflanks_extragenus_blastn proxflanks_intragenus_blastn proxflanks_pangenome_blastn | cut -f-2 | sed 's/_/\t/4' | cut -f1,3 | sed "s/_/\t/" | awk '{print$1"\t"$2"%"$3}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | egrep "left.*right|right.*left" | cut -f1 | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > proxflanks_targets.txt
+cat geneflanks_extragenus_blastn geneflanks_intragenus_blastn geneflanks_pangenome_blastn | sed "s/_up_/_up%/g" | sed "s/_down_/_down%/g" | sed "s/\t/%/" | cut -f1 | cut -f1,3 -d "%" | sed "s/%/\t/g" | sed 's/_/\t/3' | awk -F '\t' '{print $2"\t"$1"@"$3}' | sort -u | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | egrep "up.*down|down.*up" | cut -f1 | sed "s/@/%/g" | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > geneflanks_targets.txt
+
+#targetlist and intervalinfo:
+
+for i in $(cut -f 1 proxflanks_targets.txt)
+do
+grep -P "$i\t" proxflanks_targets.txt | sed "s/,/\n/g" | sed "s/\t/\n/g" | sed "s/^ *//g" | tail -n+2 > "$i"_proxflanks_targetlist.txt
+cat prox*blastn | grep -w -F -f "$i"_proxflanks_targetlist.txt - | grep "$i"_ | cut -f2- -d "_" | sed 's/_/\t/3' | cut -f1,3- | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' > "$i"_proxflanks_intervalinfo
+done
+
+#geneflanks:
+
+cat gene*blastn | sort -u > geneflanks_allblastn #for later
+
+for i in $(cut -f 1 geneflanks_targets.txt)
+do
+grep -P "$i\t" geneflanks_targets.txt | sed "s/,/\n/g" | sed "s/\t/\n/g" | sed "s/^ *//g" | tail -n+2 > "$i"_geneflanks_targetlist.txt
+cat geneflanks_allblastn | grep -w -F -f "$i"_geneflanks_targetlist.txt | grep "$i"_ | sed "s/_up_/\t/g" | sed "s/_down_/\t/g" | cut -f1,3- | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' > "$i"_geneflanks_intervalinfo
+done
+
 #
 for i in $(ls /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_genomes/*fasta); do seqkit fx2tab $i; done | awk -F '\t' '{OFS=FS}{print $1,length($2)}' >> all_contig_lengths.tsv
 sort -k1 all_contig_lengths.tsv -o all_contig_lengths.tsv
