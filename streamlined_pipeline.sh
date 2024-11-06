@@ -162,13 +162,20 @@ cat geneflanks_allblastn | grep -w -F -f "$i"_geneflanks_targetlist.txt | grep "
 done
 
 #Next steps:
-1. Collapse all varieties of prox and gene flanks into one file per gene cluster
+#1. Collapse all varieties of prox and gene flanks into one file per gene cluster:
+
+for i in $(ls *intervalinfo | cut -f1,2 -d "_" | sort -u); do ls "$i"_*intervalinfo | sed "s/^/cat /g" | bash >> "$i"_compiled_intervalinfo.txt; done
+
 2. Add in names to each intervalinfo file using the file all_contig_protein_taxonomy.tsv, which has been prepared using the code in assigning_conservation_to_genes.sh
-3. Remove the ones that are present according to presence/absence analysis
-4. Then consider whether to implement a length criteria
+
+for i in $(ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u)
+do
+sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
+cut -f1 -d " " flanks/"$i"_compiled_intervalinfo.txt | sort -u > temp
+grep -w -F -f temp all_contig_protein_taxonomy.tsv | sort -k1 | join -1 1 -2 1 - flanks/"$i"_compiled_intervalinfo.txt | 's/ [^ ]*@/ Ecoli@/' > flanks/"$i"_compiled_intervalinfo.taxa.txt
+done
 
 #
-for i in $(ls /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_genomes/*fasta); do seqkit fx2tab $i; done | awk -F '\t' '{OFS=FS}{print $1,length($2)}' >> all_contig_lengths.tsv
-sort -k1 all_contig_lengths.tsv -o all_contig_lengths.tsv
-cat step1_genusspecific_ORFan.txt | cut -f 2- -d "@" | cut -f1 -d "(" | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/*gtf | cut -f9- -d '/' | sed "s/:/\t/g" | sed "s/\.gtf//g" | cut -f1,2,6,7,11 | cut -f1 -d ";" | tr -d "\"" | sed "s/transcript_id//g" | sort -k2 | join -1 2 -2 1 - all_contig_lengths.tsv > contig_genome_genestart_geneend_genename_contiglength.tsv
-cut -f 5 -d " " contig_genome_genestart_geneend_genename_contiglength.tsv | grep -f - all_450_proteins.clusters.tsv | sed "s/\t/@/g" | cut -f1,2,4 -d "@" | rev | sed "s/@/\t/" | rev | sed "s/(+)$//g" | sed "s/(-)$//g" | sort -k2 | join -1 2 -2 5 - contig_genome_genestart_geneend_genename_contiglength.tsv | sed "s/ /\t/g" > genename_cluster_contig_genome_start_end_contiglength.tsv
+
+3. Remove the ones that are present according to presence/absence analysis
+4. Then consider whether to implement a length criteria
