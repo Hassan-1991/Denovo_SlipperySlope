@@ -169,13 +169,24 @@ for i in $(ls *intervalinfo | cut -f1,2 -d "_" | sort -u); do ls "$i"_*intervali
 2. Add in names to each intervalinfo file using the file all_contig_protein_taxonomy.tsv, which has been prepared using the code in assigning_conservation_to_genes.sh
 
 for i in $(ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u)
-do
-sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
+ sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
 cut -f1 -d " " flanks/"$i"_compiled_intervalinfo.txt | sort -u > temp
-grep -w -F -f temp all_contig_protein_taxonomy.tsv | sort -k1 | join -1 1 -2 1 - flanks/"$i"_compiled_intervalinfo.txt | 's/ [^ ]*@/ Ecoli@/' > flanks/"$i"_compiled_intervalinfo.taxa.txt
+grep -w -F -f temp all_contig_protein_taxonomy.tsv | sort -k1 | join -1 1 -2 1 - flanks/"$i"_compiled_intervalinfo.txt | sed 's/ [^ ]*@/ Ecoli@/' > flanks/"$i"_compiled_intervalinfo.taxa.txt
 done
 
-#
+all_proteins_vs_noncoliEscherichia_annotated.tsv
+all_proteins_vs_noncoliEscherichia_ORFs_ATG.tsv
+all_proteins_vs_noncoliEscherichia_ORFs_TTG_GTG.tsv
 
 3. Remove the ones that are present according to presence/absence analysis
+
+#ORFasns with flanks:
+ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u > ORFans_w_flanks.txt
+#for annotated:
+cat all_proteins_vs_noncoliEscherichia_annotated.tsv | awk -F '\t' '($5>60&&$16<0.001)' | grep -F -f ORFans_w_flanks.txt | cut -f1,2 | cut -f 2- -d "@" > intragenus_distribution_interim.txt
+#for ORFs:
+cat all_proteins_vs_noncoliEscherichia_ORFs_ATG.tsv all_proteins_vs_noncoliEscherichia_ORFs_TTG_GTG.tsv | awk -F '\t' '($5>60&&$16<0.001)' | grep -F -f ORFans_w_flanks.txt | cut -f1,2 | rev | cut -f2- -d "_" | rev | cut -f 2- -d "@" >> intragenus_distribution_interim.txt
+
+
+
 4. Then consider whether to implement a length criteria
