@@ -169,24 +169,30 @@ for i in $(ls *intervalinfo | cut -f1,2 -d "_" | sort -u); do ls "$i"_*intervali
 2. Add in names to each intervalinfo file using the file all_contig_protein_taxonomy.tsv, which has been prepared using the code in assigning_conservation_to_genes.sh
 
 for i in $(ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u)
- sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
+sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
 cut -f1 -d " " flanks/"$i"_compiled_intervalinfo.txt | sort -u > temp
 grep -w -F -f temp all_contig_protein_taxonomy.tsv | sort -k1 | join -1 1 -2 1 - flanks/"$i"_compiled_intervalinfo.txt | sed 's/ [^ ]*@/ Ecoli@/' > flanks/"$i"_compiled_intervalinfo.taxa.txt
 done
 
-all_proteins_vs_noncoliEscherichia_annotated.tsv
-all_proteins_vs_noncoliEscherichia_ORFs_ATG.tsv
-all_proteins_vs_noncoliEscherichia_ORFs_TTG_GTG.tsv
+3. Identify presence/absence
 
-3. Remove the ones that are present according to presence/absence analysis
-
-#ORFasns with flanks:
+#ORFans with flanks:
 ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u > ORFans_w_flanks.txt
-#for annotated:
+
+#for annotated, intra-genus:
 cat all_proteins_vs_noncoliEscherichia_annotated.tsv | awk -F '\t' '($5>60&&$16<0.001)' | grep -F -f ORFans_w_flanks.txt | cut -f1,2 | cut -f 2- -d "@" > intragenus_distribution_interim.txt
-#for ORFs:
+#for ORFs, intra-genus:
 cat all_proteins_vs_noncoliEscherichia_ORFs_ATG.tsv all_proteins_vs_noncoliEscherichia_ORFs_TTG_GTG.tsv | awk -F '\t' '($5>60&&$16<0.001)' | grep -F -f ORFans_w_flanks.txt | cut -f1,2 | rev | cut -f2- -d "_" | rev | cut -f 2- -d "@" >> intragenus_distribution_interim.txt
+sed "s/(+)//g" intragenus_distribution_interim.txt | sed "s/(-)//g" | sort -u | sort -k2 | join -1 2 -2 1 - all_contig_protein_taxonomy.tsv > intragenus_distribution_interim_2.txt
 
+#For pangenome:
+cat all_proteins_vs_pangenome_annotated.tsv | awk -F '\t' '($3>80&&$5>70&&$16<0.001)' | cut -f1,2 | sed "s/\t/@/g" | cut -f2,4 | sed "s/@/\t/g" | cut -f2,4 | sed "s/(+)//g" | sed "s/(-)//g" | rev | sed "s/_/@/" | rev | grep -w -F -f ORFans_w_flanks.txt | sed "s/@/_/g" > pangenome_distribution_interim_1.txt
+cat all_proteins_vs_pangenome_ORFs.tsv |  awk -F '\t' '($3>80&&$5>70&&$16<0.001)' | cut -f1,2 | cut -f2- -d "@" | grep -w -F -f ORFans_w_flanks.txt | rev | cut -f2- -d "_" | rev | sed "s/(+)//g" | sed "s/(-)//g" | sort -u >> pangenome_distribution_interim_1.txt
+sort -u pangenome_distribution_interim_1.txt | sort -k2 | join -1 2 -2 1 - all_contig_protein_taxonomy.tsv > pangenome_distribution_interim_2.txt
 
+#Put them together:
+cat intragenus_distribution_interim_2.txt pangenome_distribution_interim_2.txt | cut -f2,3 -d " " | sort -u | sed 's/ [^ ]*@/ Ecoli@/' > presence_absence.interim.tsv
 
-4. Then consider whether to implement a length criteria
+4. Remove the ones that are present:
+Follow this formula:
+grep "ABBJBLFF_00043" presence_absence.interim.tsv | cut -f2 -d " " | grep -v -w -F -f - flanks/ABBJBLFF_00043_compiled_intervalinfo.taxa.txt >
