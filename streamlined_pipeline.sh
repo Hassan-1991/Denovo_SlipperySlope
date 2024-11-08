@@ -299,24 +299,13 @@ head -n-4 flanks/"$i"_mafft_input.faa | grep "^>" | egrep -v "Escherichia|Ecoli@
 done
 
 cut -f2 ExcelInput.tsv | sort -u > all_taxa
-mapfile -t all_taxa < all_taxa
-col1_unique_values=$(awk '{print $1}' ExcelInput.tsv | sort -u)
-
-# Process each unique value in `col1`
-for col1_value in $col1_unique_values; do
-    # For each string in total_strings, check if it appears in Excel_input.tsv
-    for string in "${all_taxa[@]}"; do
-        # Use awk to check for a match in Excel_input.tsv for the current col1_value and string
-        match=$(awk -v col1="$col1_value" -v str="$string" '$1 == col1 && $2 == str' ExcelInput.tsv)
-        
-        # If match found, print it; otherwise, mark as "absent"
-        if [[ -n "$match" ]]; then
-            echo "$match"
-        else
-            echo "$col1_value $string absent"
-        fi
-    done
+for i in $(cut -f1 ExcelInput.tsv | sort -u)
+do
+grep "$i" ExcelInput.tsv >> ExcelInput.long.tsv
+grep "$i" ExcelInput.tsv | cut -f2 | grep -w -v -F -f - all_taxa | sed "s/^/"$i"\t/g" | sed "s/$/\tabsent/g" >> ExcelInput.long.tsv
 done
+
+sort -u ExcelInput.long.tsv -o ExcelInput.long.tsv
 
 #debug
 
