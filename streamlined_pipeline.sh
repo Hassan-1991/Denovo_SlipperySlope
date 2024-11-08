@@ -22,9 +22,9 @@ cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_proteins/*prot.faa > a
 cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_cds/*.faa > all_450_CDS.faa
 linear all_450_CDS.faa
 mmseqs createdb all_450_proteins.faa all_450_proteins
-mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 1
+mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 2
 mmseqs convertalis all_450_proteins all_450_proteins resultDB resultDB.m8
-mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 1
+mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 2
 mmseqs createtsv all_450_proteins all_450_proteins clusterDB all_450_proteins.clusters.tsv
 
 #Get representative protein sequences:
@@ -91,7 +91,7 @@ done
 ls *.sh | sed "s/^/bash /g" > running.sh
 /stor/work/Ochman/hassan/tools/parallelize_run.sh
 
-#Extract gene flanks #running
+#Extract gene flanks
 
 for j in $(cat step1_genusspecific_ORFan.txt | cut -f2- -d "@" | cut -f1 -d "(")
 do
@@ -161,12 +161,11 @@ grep -P "$i\t" geneflanks_targets.txt | sed "s/,/\n/g" | sed "s/\t/\n/g" | sed "
 cat geneflanks_allblastn | grep -w -F -f "$i"_geneflanks_targetlist.txt | grep "$i"_ | sed "s/_up_/\t/g" | sed "s/_down_/\t/g" | cut -f1,3- | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' > "$i"_geneflanks_intervalinfo
 done
 
-#Next steps:
 #1. Collapse all varieties of prox and gene flanks into one file per gene cluster:
 
 for i in $(ls *intervalinfo | cut -f1,2 -d "_" | sort -u); do ls "$i"_*intervalinfo | sed "s/^/cat /g" | bash >> "$i"_compiled_intervalinfo.txt; done
 
-2. Add in names to each intervalinfo file using the file all_contig_protein_taxonomy.tsv, which has been prepared using the code in assigning_conservation_to_genes.sh
+#2. Add in names to each intervalinfo file using the file all_contig_protein_taxonomy.tsv, which has been prepared using the code in assigning_conservation_to_genes.sh
 
 for i in $(ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u)
 sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
@@ -174,7 +173,7 @@ cut -f1 -d " " flanks/"$i"_compiled_intervalinfo.txt | sort -u > temp
 grep -w -F -f temp all_contig_protein_taxonomy.tsv | sort -k1 | join -1 1 -2 1 - flanks/"$i"_compiled_intervalinfo.txt | sed 's/ [^ ]*@/ Ecoli@/' > flanks/"$i"_compiled_intervalinfo.taxa.txt
 done
 
-3. Identify presence/absence
+#3. Identify presence/absence
 
 #ORFans with flanks:
 ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u > ORFans_w_flanks.txt
@@ -193,6 +192,76 @@ sort -u pangenome_distribution_interim_1.txt | sort -k2 | join -1 2 -2 1 - all_c
 #Put them together:
 cat intragenus_distribution_interim_2.txt pangenome_distribution_interim_2.txt | cut -f2,3 -d " " | sort -u | sed 's/ [^ ]*@/ Ecoli@/' > presence_absence.interim.tsv
 
-4. Remove the ones that are present:
-Follow this formula:
-grep "ABBJBLFF_00043" presence_absence.interim.tsv | cut -f2 -d " " | grep -v -w -F -f - flanks/ABBJBLFF_00043_compiled_intervalinfo.taxa.txt >
+#4. Remove the ones that are present:
+#Follow this formula:
+
+for i in $(ls flanks/*_compiled_intervalinfo.taxa.txt | cut -f2- -d '/' | cut -f1,2 -d "_")
+do
+value=$(grep "$i" /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf | awk -F '\t' '{print $5-$4+1}')
+sed -i "s/$/ $value/" flanks/"$i"_compiled_intervalinfo.taxa.txt
+grep "$i" presence_absence.interim.tsv | cut -f2 -d " " | grep -v -w -F -f - flanks/"$i"_compiled_intervalinfo.taxa.txt | awk '(($5>($7*0.5))&&($5<10000))' > flanks/"$i"_compiled_intervalinfo.taxa.final.txt
+done
+
+#Delete empty files
+find . -type f -empty -delete
+
+#To extract sequences, let's compile all individual genomes in the same place:
+
+mv /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoli_Escherichia_individual_genomes/* /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/
+mv /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_genomes_individual/* /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/
+
+find /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_genomes_individual/ -type f | xargs -I {} mv {} /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/
+find /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/10082024_noncoli_Escherichia_database/noncoli_Escherichia_individual_genomes/ -type f | xargs -I {} mv {} /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/
+
+#Make DB out of intervals
+#DISCOVERED THE MMSEQS
+
+for variable in $(ls flanks/*_compiled_intervalinfo.taxa.final.txt | cut -f2- -d '/' | cut -f1,2 -d "_")
+do
+    command="grep \"plus\" flanks/${variable}_compiled_intervalinfo.taxa.final.txt | awk '{OFS=\"\"}{print \"samtools faidx /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$3,\"-\",\$4}' | sed \"s/\$/ >> flanks\/${variable}_interval.faa/g\" && grep \"minus\" flanks/${variable}_compiled_intervalinfo.taxa.final.txt | awk '{OFS=\"\"}{print \"samtools faidx -i /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$3,\"-\",\$4}' | sed \"s/\$/ >> flanks\/${variable}_interval.faa/g\""
+    output_file=flanks/"${variable}_joint_samtools.sh"
+    bash -c "$command" > "$output_file"
+done
+
+ls flanks/*_joint_samtools.sh | sed "s/^/bash /g" > running.sh
+conda deactivate
+/stor/work/Ochman/hassan/tools/parallelize_run.sh
+
+#Get ORFan CDS sequences for later
+grep "^>" step1_genusspecific_ORFans.faa | cut -f2- -d "@" | cut -f1 -d "(" | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf | gtf2bed | bedtools getfasta -s -name -fi /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_genomes.fasta -bed - > step1_genusspecific_ORFans.CDS.faa
+
+#Still not done:
+
+#Make databases out of intervals
+for i in $(ls flanks/*_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_" | grep -v "HHDFKHIH_03778")
+do
+makeblastdb -in flanks/"$i"_interval.faa -dbtype nucl -out flanks/"$i"_interval
+done
+
+#blastn search
+for i in $(ls *_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_" | grep -v "HHDFKHIH_03778")
+do
+ls "$i"_interval.faa | cut -f1,2 -d "_" | grep --no-group-separator -A1 -f - /stor/work/Ochman/hassan/Ecoli_pangenome/103024_updated_pipeline/backup/step1_genusspecific_ORFans.CDS.faa |
+blastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 1000000 -num_alignments 1000000 -evalue 200000 -out "$i"_interval_blastn -word_size 7
+done
+
+#mviewed:
+
+export PERL5LIB=/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/lib/
+for i in $(ls flanks/*_interval_blastn | cut -f1,2 -d "_")
+do
+echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast flanks/${i}_interval_blastn > flanks/${i}_blastn_mviewed"
+done
+
+for i in $(ls flanks/*_blastn_mviewed | cut -f1,2 -d "_")
+do
+querylength=$(grep -A1 "$i" step1_genusspecific_ORFans.CDS.faa | grep -v "^>" | awk '{print length($0)}')
+ratio=$(tail -n+8 flanks/"$i"_blastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
+if (( $(echo "$ratio > 0.5" | bc -l) ))
+then
+tail -n+9 flanks/"$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear > "$i"_blastn_seq.faa
+fi
+done
+
+wc -l *_blastn_seq.faa | grep " 4 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
+
