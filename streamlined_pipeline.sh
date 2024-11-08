@@ -285,4 +285,14 @@ mafft --auto "$i"_mafft_input.faa > "$i"_mafft.aln
 done
 
 #To convert to a readable Excel file:
+#Pangenome
 
+grep "DHAGKGFP_01445" presence_absence.interim.tsv | grep "Ecoli@" | cut -f2 -d " " | sed "s/$/\tpresent/g" | sed "s/^/DHAGKGFP_01445\t/g" > ExcelInput.tsv
+grep "Ecoli@" flanks/DHAGKGFP_01445_mafft_input.faa | cut -f2- -d ">" | cut -f1 -d ":" | sort -u | sed "s/$/\tcandidate/g" | sed "s/^/DHAGKGFP_01445\t/g" >> ExcelInput.tsv
+#Escherichia
+grep "DHAGKGFP_01445" presence_absence.interim.tsv | grep "Escherichia" | cut -f2 -d " " | sed "s/$/\tpresent/g" | sed "s/^/DHAGKGFP_01445\t/g" >> ExcelInput.tsv
+grep "Escherichia" flanks/DHAGKGFP_01445_mafft_input.faa | cut -f2- -d ">" | cut -f1 -d ":" | sort -u | sed "s/Escherichia_//g" | sed "s/$/\tcandidate/g" | sed "s/^/DHAGKGFP_01445\t/g" >> ExcelInput.tsv
+#Genera
+head -n-4 flanks/DHAGKGFP_01445_mafft_input.faa | grep "^>" | egrep -v "Escherichia|Ecoli@" | cut -f2- -d ">" | cut -f1 -d ":" | sort -u | sed "s/$/\tcandidate/g" | sed "s/^/DHAGKGFP_01445\t/g" >> ExcelInput.tsv
+
+#Next steps later after alignments are made
