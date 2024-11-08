@@ -238,7 +238,9 @@ do
 makeblastdb -in flanks/"$i"_interval.faa -dbtype nucl -out flanks/"$i"_interval
 done
 
+
 #blastn search
+cd flanks
 for i in $(ls *_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_" | grep -v "HHDFKHIH_03778")
 do
 ls "$i"_interval.faa | cut -f1,2 -d "_" | grep --no-group-separator -A1 -f - /stor/work/Ochman/hassan/Ecoli_pangenome/103024_updated_pipeline/backup/step1_genusspecific_ORFans.CDS.faa |
@@ -248,20 +250,39 @@ done
 #mviewed:
 
 export PERL5LIB=/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/lib/
-for i in $(ls flanks/*_interval_blastn | cut -f1,2 -d "_")
+for i in $(ls flanks/*_interval_blastn | cut -f2- -d '/' | cut -f1,2 -d "_")
 do
 echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast flanks/${i}_interval_blastn > flanks/${i}_blastn_mviewed"
 done
 
-for i in $(ls flanks/*_blastn_mviewed | cut -f1,2 -d "_")
+for i in $(ls flanks/*_blastn_mviewed | cut -f2- -d '/' | cut -f1,2 -d "_")
 do
 querylength=$(grep -A1 "$i" step1_genusspecific_ORFans.CDS.faa | grep -v "^>" | awk '{print length($0)}')
 ratio=$(tail -n+8 flanks/"$i"_blastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
 if (( $(echo "$ratio > 0.5" | bc -l) ))
 then
-tail -n+9 flanks/"$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear > "$i"_blastn_seq.faa
+tail -n+9 flanks/"$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear > flanks/"$i"_blastn_seq.faa
+tail -n+8 flanks/"$i"_blastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$NF}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | head -2 >> flanks/"$i"_blastn_seq.faa
 fi
 done
 
-wc -l *_blastn_seq.faa | grep " 4 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
+wc -l *_blastn_seq.faa | grep " 2 " | rev | cut -f 1 -d " " | rev | sed "s/^/rm /g" | bash
+
+#Non-redundancy:
+cd flanks
+for i in $(ls *_blastn_seq.faa | cut -f1,2 -d "_")
+do
+grep "^>" "$i"_blastn_seq.faa | cut -f1 -d ":" | tr -d ">" | head -n-1 | sort -u | grep -w -F -f - ../all_contig_protein_taxonomy.tsv | sed 's/\t[^ ]*@/\tEcoli@/' | sort -k1 > interim
+seqkit fx2tab "$i"_blastn_seq.faa | sed "s/:/\t/g" | sort -k1 | join -1 1 -2 1 - interim | awk '{print $1,$2, $3":"$4}' | awk '!seen[$3]++' | sed "s/:/ /g" | awk '{print $4":"$1":"$2"\t"$3}' | sed "s/^/>/g" | sed "s/\t/\n/g" > "$i"_mafft_input.faa
+tail -2 "$i"_blastn_seq.faa >> "$i"_mafft_input.faa
+grep -A1 "$i" ../step1_genusspecific_ORFans.CDS.faa | sed "s/>/>FULL_/g" >> "$i"_mafft_input.faa
+done
+
+#mafft step
+for i in $(ls *_blastn_seq.faa | cut -f1,2 -d "_")
+do
+mafft --auto "$i"_mafft_input.faa > "$i"_mafft.aln
+done
+
+#To convert to a readable Excel file:
 
