@@ -311,3 +311,4 @@ sort -u ExcelInput.long.tsv -o ExcelInput.long.tsv
 
 #Next steps later after alignments are made
 #Genus names need to be fixedified
+#Need to think about pruning down to a set of candidates, etc
