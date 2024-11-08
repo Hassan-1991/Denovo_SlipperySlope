@@ -28,3 +28,9 @@ cut -f1,5 ../../500_ipp_lineagedesignations.tsv | tail -n+2 | sort -k1 | join -1
 cat extragenus_interim2_annotatedproteins_genusonly extragenus_interim_ORFs_3 intragenus_interim_annotated_ORF_1 pangenome_contigs_lineages | sed "s/ /\t/g" > all_contig_protein_taxonomy.tsv
 sort -k1 all_contig_protein_taxonomy.tsv -o all_contig_protein_taxonomy.tsv
 
+#Five-step conversion from blast results to distribution levels
+#For genera:
+
+#blast to cluster-contig:
+cat all_proteins_vs_GBRS_annotated.tsv all_proteins_vs_GBRS_ORFs.tsv | awk -F '\t' '($5>60&&$16<0.001)' | cut -f1,2 | sort -u | awk '{split($2, a, "_"); $2 = a[1]; print}' > cluster_contig.tsv
+#
