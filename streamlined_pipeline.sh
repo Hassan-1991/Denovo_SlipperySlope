@@ -296,3 +296,4 @@ grep "Escherichia" flanks/DHAGKGFP_01445_mafft_input.faa | cut -f2- -d ">" | cut
 head -n-4 flanks/DHAGKGFP_01445_mafft_input.faa | grep "^>" | egrep -v "Escherichia|Ecoli@" | cut -f2- -d ">" | cut -f1 -d ":" | sort -u | sed "s/$/\tcandidate/g" | sed "s/^/DHAGKGFP_01445\t/g" >> ExcelInput.tsv
 
 #Next steps later after alignments are made
+#Genus names need to be fixedified
