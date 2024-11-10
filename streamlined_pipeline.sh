@@ -67,11 +67,13 @@ faSomeRecords clustered_representative_proteins.faa step1_genusspecific_ORFan.tx
 
 #I need to know whether the upstream and downstream flanks of these proteins are consistent, i.e. belong to the same cluster:
 
-mkdir flank_tangent
-cp all_450_proteins.clusters.tsv flank_tangent
-cp step1_genusspecific_ORFan.txt flank_tangent
-cp all_450_CDS.faa flank_tangent
+mkdir flank_extraction
+cp all_450_proteins.clusters.tsv flank_extraction
+cp step1_genusspecific_ORFan.txt flank_extraction
+cp all_450_CDS.faa flank_extraction
 #Make a list of each cluster to which upstream and downstream flanks belong to:
+
+cut -f2- -d "@" step1_genusspecific_ORFan.txt | cut -f1 -d "(" | sort -u > test && mv test step1_genusspecific_ORFan.txt
 
 for j in $(cat step1_genusspecific_ORFan.txt)
 do
