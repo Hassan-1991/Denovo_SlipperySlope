@@ -163,6 +163,8 @@ grep -P "$i\t" geneflanks_targets.txt | sed "s/,/\n/g" | sed "s/\t/\n/g" | sed "
 cat geneflanks_allblastn | grep -w -F -f "$i"_geneflanks_targetlist.txt | grep "$i"_ | sed "s/_up_/\t/g" | sed "s/_down_/\t/g" | cut -f1,3- | awk -F '\t' '{OFS=""}{print $13,"%",$14,"%",$10,"\t",$2}' | awk -F'\t' '{ values[$2] = (values[$2] == "" ? $1 : values[$2] ", " $1) } END { for (value in values) { print value "\t" values[value] } }' | sed "s/%plus, /%/g" | sed "s/%minus, /%/g" | sed "s/%plus/\tplus/g" | sed "s/%minus/\tminus/g" | sed "s/%/,/g" | sed "s/\t/,/g" | sed "s/ //g" | awk -F',' '{identifier = $1; values = $2 "," $3 "," $4 "," $5; split(values, array, ","); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, $6; } else { print identifier, middle2, middle1, -difference, $6; } }' > "$i"_geneflanks_intervalinfo
 done
 
+##RESUME FROM BELOW##
+
 #1. Collapse all varieties of prox and gene flanks into one file per gene cluster:
 
 for i in $(ls *intervalinfo | cut -f1,2 -d "_" | sort -u); do ls "$i"_*intervalinfo | sed "s/^/cat /g" | bash >> "$i"_compiled_intervalinfo.txt; done
