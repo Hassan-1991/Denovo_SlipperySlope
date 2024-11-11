@@ -34,8 +34,20 @@ sort -k1 all_contig_protein_taxonomy.tsv -o all_contig_protein_taxonomy.tsv
 #blast to cluster-contig:
 cat all_proteins_vs_GBRS_annotated.tsv all_proteins_vs_GBRS_ORFs.tsv | awk -F '\t' '($5>60&&$16<0.001)' | cut -f1,2 | sort -u | awk '{split($2, a, "_"); $2 = a[1]; print}' > cluster_contig.tsv
 #cluster-taxa:
-
+sort -k2 cluster_contig.tsv | join -1 2 -2 1 - ../../all_contig_protein_taxonomy.tsv > cluster_contig_taxa.tsv
 #cluster-taxa_number:
+cut -f2- -d " " cluster_contig_taxa.tsv | sort -u | cut -f1 -d " "  | sort | uniq -c | sed "s/^ *//g" | awk '{print $2,$1}' > cluster_taxanumber.tsv
+cut -f1 -d " " cluster_taxanumber.tsv | sed "s/$/\t/g" | grep -vf - ../all_450_proteins.clusters.tsv | cut -f1 | sort -u | sed "s/$/ 0/g" >> cluster_taxanumber.tsv
 #gene-cluster-taxa_number:
+sort -k1 ../all_450_proteins.clusters.tsv -o ../all_450_proteins.clusters.tsv
+sort -k1  cluster_taxanumber.tsv | join -1 1 -2 1 - ../all_450_proteins.clusters.tsv > cluster_taxanumber_gene.tsv
 #startposition-gene-cluster-taxa_number:
+#For one genome:
+awk -F '\t' '($7=="+"&&$3=="CDS")' /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/11657_5#57.gtf | cut -f1,4,9 | cut -f-2 -d "\"" | sed "s/transcript_id \"//g" > temp
+awk -F '\t' '($7=="-"&&$3=="CDS")' /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/11657_5#57.gtf | cut -f1,5,9 | cut -f-2 -d "\"" | sed "s/transcript_id \"//g" >> temp
+sort -k1 temp -o temp
+cut -f1 temp | grep -w -F -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/500_gtfs_processed/11657_5#57.gtf | awk -F '\t' '($3=="CDS")' | cut -f1 | sort | uniq -c | sort -nrk1 | sed "s/^ *//g" | sort -k2 > temp2
+join -1 1 -2 2 temp temp2 | sed "s/ /\t/g" | sort -k3 > temp3
+grep "11657_5#57" cluster_taxanumber_gene.tsv | cut -f2- -d " " | sed "s/ /@/g" | cut -f1 -d "(" | cut -f1,3 -d "@" | sed "s/@/\t/g" | sort -k2 | join -1 2 -2 3 - temp3 | sed "s/ /,/g" | sort -k4,4 -k5,5n | sed "1s/^/gene,frequency,contig,position,order\n/" > cluster_taxanumber_gene_position.tsv
 
+#RETHINK PLOTS
