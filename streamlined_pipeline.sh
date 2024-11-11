@@ -126,8 +126,8 @@ mv interim proxflanks.faa
 
 #Search flanks against genomes:
 cd ..
-cp flank_tangent/geneflanks.faa .
-cp flank_tangent/proxflanks.faa .
+cp flank_extraction/geneflanks.faa .
+cp flank_extraction/proxflanks.faa .
 makeblastdb -in all_450_genomes.faa -dbtype nucl -out all_450_genomes
 
 blastn -query geneflanks.faa -db /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_genomes/04072024_nonEscherichia_genomes -outfmt '6 qseqid sseqid pident nident qcovhsp length mismatch gapopen gaps sstrand qstart qend sstart send qlen slen evalue bitscore' -num_threads 104 -max_target_seqs 100000 -max_hsps 1 -out geneflanks_extragenus_blastn
