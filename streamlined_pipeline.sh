@@ -172,6 +172,7 @@ for i in $(ls *intervalinfo | cut -f1,2 -d "_" | sort -u); do ls "$i"_*intervali
 #2. Add in names to each intervalinfo file using the file all_contig_protein_taxonomy.tsv, which has been prepared using the code in assigning_conservation_to_genes.sh
 
 for i in $(ls flanks/*_compiled_intervalinfo.txt | cut -f1,2 -d "_" | cut -f2- -d '/' | sort -u)
+do
 sort -k1 flanks/"$i"_compiled_intervalinfo.txt -o flanks/"$i"_compiled_intervalinfo.txt
 cut -f1 -d " " flanks/"$i"_compiled_intervalinfo.txt | sort -u > temp
 grep -w -F -f temp all_contig_protein_taxonomy.tsv | sort -k1 | join -1 1 -2 1 - flanks/"$i"_compiled_intervalinfo.txt | sed 's/ [^ ]*@/ Ecoli@/' > flanks/"$i"_compiled_intervalinfo.taxa.txt
@@ -208,6 +209,21 @@ done
 
 #Delete empty files
 find . -type f -empty -delete
+
+#Fixing some bad genus names:
+#Manually looking at genus names to identify stinkers, then get their corresponding contigs/proteins:
+egrep -v "@|Escherichia" *final.txt | cut -f2- -d ":" | cut -f1,2 -d " " | egrep "MAG:|Mutant|UNVERIFIED_ORG|\[|unidentified|Candidatus" | cut -f1 -d " " | sort -u
+#Just 46 such cases, manually looked up from ncbi
+cut -f1 -d " " extragenus_corrective.txt | sort -u > extragenus_corrective.tsv
+
+#Fix the problematic ones:
+
+for i in $(cut -f1 extragenus_corrective.tsv | grep -F -f - *_compiled_intervalinfo.taxa.final.txt | cut -f1 -d ":" | sort -u)
+do
+awk 'NR==FNR {lookup[$1] = $2; next} $1 in lookup { $2 = lookup[$1] }1' extragenus_corrective.tsv $i > "$i"2
+done
+
+ls *txt2 | sed "s/^/mv /g" | awk '{print $1,$2,$2}' | sed "s/2$//g" | bash
 
 #To extract sequences, let's compile all individual genomes in the same place:
 
