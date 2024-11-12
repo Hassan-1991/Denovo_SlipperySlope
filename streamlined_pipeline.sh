@@ -22,9 +22,9 @@ cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_proteins/*prot.faa > a
 cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_cds/*.faa > all_450_CDS.faa
 linear all_450_CDS.faa
 mmseqs createdb all_450_proteins.faa all_450_proteins
-mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 2
+mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 0
 mmseqs convertalis all_450_proteins all_450_proteins resultDB resultDB.m8
-mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 2
+mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 0
 mmseqs createtsv all_450_proteins all_450_proteins clusterDB all_450_proteins.clusters.tsv
 
 #Get representative protein sequences:
@@ -250,18 +250,31 @@ conda deactivate
 #Get ORFan CDS sequences for later
 grep "^>" step1_genusspecific_ORFans.faa | cut -f2- -d "@" | cut -f1 -d "(" | grep -f - /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_gtfs_CDSonly.gtf | gtf2bed | bedtools getfasta -s -name -fi /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/all_500_genomes.fasta -bed - > step1_genusspecific_ORFans.CDS.faa
 
-#Still not done:
-
 #Make databases out of intervals
-for i in $(ls flanks/*_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_" | grep -v "HHDFKHIH_03778")
+#To avoid weird missing sequences, start a logfile
+
+script mylogfile.txt
+
+for i in $(ls flanks/*_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_")
 do
 makeblastdb -in flanks/"$i"_interval.faa -dbtype nucl -out flanks/"$i"_interval
 done
 
+exit
+
+#Re-run the bad ones
+grep -B6 -i "ignor" mylogfile.txt | grep "interval" | grep "New DB title" | cut -f2- -d '/' | cut -f1,2 -d "_" | sed "s/^/flanks\//g" | sed "s/$/_interval.faa/g" | sed "s/^/rm /g" | bash
+grep -B6 -i "ignor" mylogfile.txt | grep "interval" | grep "New DB title" | cut -f2- -d '/' | cut -f1,2 -d "_" | sed "s/^/flanks\//g" | sed "s/$/_joint_samtools.sh/g" | sed "s/^/bash /g" > running.sh
+/stor/work/Ochman/hassan/tools/parallelize_run.sh
+
+for i in $(grep -B6 -i "ignor" mylogfile.txt | grep "interval" | grep "New DB title" | cut -f2- -d '/' | cut -f1,2 -d "_")
+do
+makeblastdb -in flanks/"$i"_interval.faa -dbtype nucl -out flanks/"$i"_interval
+done
 
 #blastn search
 cd flanks
-for i in $(ls *_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_" | grep -v "HHDFKHIH_03778")
+for i in $(ls *_interval.faa | cut -f2- -d '/' | cut -f1-2 -d "_")
 do
 ls "$i"_interval.faa | cut -f1,2 -d "_" | grep --no-group-separator -A1 -f - /stor/work/Ochman/hassan/Ecoli_pangenome/103024_updated_pipeline/backup/step1_genusspecific_ORFans.CDS.faa |
 blastn -query - -db "$i"_interval -outfmt 0 -num_threads 72 -num_descriptions 1000000 -num_alignments 1000000 -evalue 200000 -out "$i"_interval_blastn -word_size 7
@@ -273,7 +286,8 @@ export PERL5LIB=/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/lib/
 for i in $(ls flanks/*_interval_blastn | cut -f2- -d '/' | cut -f1,2 -d "_")
 do
 echo "/stor/scratch/Ochman/hassan/genomics_toolbox/mview-1.67/bin/mview -in blast flanks/${i}_interval_blastn > flanks/${i}_blastn_mviewed"
-done
+done > running.sh
+/stor/work/Ochman/hassan/tools/parallelize_run.sh
 
 for i in $(ls flanks/*_blastn_mviewed | cut -f2- -d '/' | cut -f1,2 -d "_")
 do
@@ -281,7 +295,7 @@ querylength=$(grep -A1 "$i" step1_genusspecific_ORFans.CDS.faa | grep -v "^>" | 
 ratio=$(tail -n+8 flanks/"$i"_blastn_mviewed | head -1 | awk '{print $(NF-1)}' | sed "s/:/\t/g" | awk -v var=$querylength -F '\t' '{print ($2-$1+1)/var}')
 if (( $(echo "$ratio > 0.5" | bc -l) ))
 then
-tail -n+9 flanks/"$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>70)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear > flanks/"$i"_blastn_seq.faa
+tail -n+9 flanks/"$i"_blastn_mviewed | head -n-3 | awk '{print $2,$(NF-4),$NF}' | sed "s/%//g" | awk '($2>50)' | awk '{print $1,$3}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear > flanks/"$i"_blastn_seq.faa
 tail -n+8 flanks/"$i"_blastn_mviewed | head -n-3 | sed "1s/^/g /g" | awk '{print $2,$NF}' | sed "s/^/>/g" | sed "s/ /\n/g" | linear | head -2 >> flanks/"$i"_blastn_seq.faa
 fi
 done
@@ -298,8 +312,25 @@ tail -2 "$i"_blastn_seq.faa >> "$i"_mafft_input.faa
 grep -A1 "$i" ../step1_genusspecific_ORFans.CDS.faa | sed "s/>/>FULL_/g" >> "$i"_mafft_input.faa
 done
 
+#Missteps for 32:
+
+for i in $(cut -f1 extragenus_corrective.tsv | grep -F -w -f - *_blastn_seq.faa | cut -f1 -d ":" | sort -u | cut -f1,2 -d "_" | sort -u)
+do
+grep "^>" "$i"_blastn_seq.faa | cut -f1 -d ":" | tr -d ">" | head -n-1 | sort -u | grep -w -F -f - "$i"_compiled_intervalinfo.taxa.final.txt | cut -f1,2 -d " " | sort -k1 > interim
+seqkit fx2tab "$i"_blastn_seq.faa | sed "s/:/\t/g" | sort -k1 | join -1 1 -2 1 - interim | awk '{print $1,$2, $3":"$4}' | awk '!seen[$3]++' | sed "s/:/ /g" | awk '{print $4":"$1":"$2"\t"$3}' | sed "s/^/>/g" | sed "s/\t/\n/g" > "$i"_mafft_input.faa
+tail -2 "$i"_blastn_seq.faa >> "$i"_mafft_input.faa
+grep -A1 "$i" ../step1_genusspecific_ORFans.CDS.faa | sed "s/>/>FULL_/g" >> "$i"_mafft_input.faa
+done
+
 #mafft step
 for i in $(ls *_blastn_seq.faa | cut -f1,2 -d "_")
+do
+mafft --auto "$i"_mafft_input.faa > "$i"_mafft.aln
+done
+
+#Fix misstep:
+
+for i in $(cut -f1 extragenus_corrective.tsv | grep -F -w -f - *_blastn_seq.faa | cut -f1 -d ":" | sort -u | cut -f1,2 -d "_" | sort -u)
 do
 mafft --auto "$i"_mafft_input.faa > "$i"_mafft.aln
 done
@@ -327,7 +358,41 @@ done
 
 sort -u ExcelInput.long.tsv -o ExcelInput.long.tsv
 
-#debug
+#Fix order:
+#First manually copy order of Ecoli strains and Escherichia species in file taxa_order.txt
+#Then, in order of fastANI values:
+cut -f2 ExcelInput.long.tsv | egrep -v "@|marmotae|fergusonii|albertii|ruysiae|whittamii" | sed "s/$/_/g" | sed "s/^/\t/g" | grep -f - /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Escherichia_temp/*tax* | cut -f2- | sed "s/_/\t/" | awk -F '\t' '{print $1,$NF}' | egrep -v "\[|uncultured|unidentified" | awk '($2<89)' | awk '!seen[$1]++ {print $1, $2}' | sort -nrk2 | cut -f1 -d " " >> taxa_order.txt
+#For those without fastANI values:
+cut -f2 ExcelInput.long.tsv | egrep -v "@|marmotae|fergusonii|albertii|ruysiae|whittamii" | sed "s/$/_/g" | sed "s/^/\t/g" | grep -f - /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Escherichia_temp/*tax* | cut -f2- | sed "s/_/\t/" | awk -F '\t' '{print $1,$NF}' | egrep -v "\[|uncultured|unidentified" | awk '($2<89)' | awk '!seen[$1]++ {print $1, $2}' | sort -nrk2 | cut -f1 -d " " | grep -v -F -f - all_taxa | egrep -v "@|marmot|ferguson|albert|ruysia|whittamii" >> taxa_order.txt
+#Order the long file:
+awk '{print $1, NR}' taxa_order.txt > taxa_order_index.txt
+sort -k1 taxa_order_index.txt -o taxa_order_index.txt
+sort -k2 ExcelInput.long.tsv | join -1 2 - -2 1 taxa_order_index.txt | sort -k2,2 -k4,4n | awk '{print $2,$1,$3}' | sed "s/ /\t/g" > ExcelInput.long.ordered.tsv
+
+#Finally, make it wide:
+awk '
+BEGIN { FS=OFS="\t" }
+{
+    row[$1];                             # Store each unique row name
+    if (!(seen[$2]++)) col_order[++col_count] = $2;  # Track column order
+    data[$1, $2] = $3                    # Map the value to each row-column pair
+}
+END {
+    # Print the header
+    printf "%s", "RowName";
+    for (i = 1; i <= col_count; i++) printf "\t%s", col_order[i];
+    print "";
+
+    # Print each row
+    for (r in row) {
+        printf "%s", r;
+        for (i = 1; i <= col_count; i++) {
+            col = col_order[i];
+            printf "\t%s", ( (r, col) in data ? data[r, col] : "" )
+        }
+        print ""
+    }
+}' ExcelInput.long.ordered.tsv > ExcelInput.wide.ordered.tsv
 
 #Next steps later after alignments are made
 #Genus names need to be fixedified
