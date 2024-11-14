@@ -22,9 +22,9 @@ cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_proteins/*prot.faa > a
 cat /stor/work/Ochman/hassan/Ecoli_pangenome/500_gffs/450_cds/*.faa > all_450_CDS.faa
 linear all_450_CDS.faa
 mmseqs createdb all_450_proteins.faa all_450_proteins
-mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 0
+mmseqs search all_450_proteins all_450_proteins resultDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 2
 mmseqs convertalis all_450_proteins all_450_proteins resultDB resultDB.m8
-mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 0
+mmseqs linclust all_450_proteins clusterDB tmp --min-seq-id 0.8 -c 0.7 --cov-mode 2
 mmseqs createtsv all_450_proteins all_450_proteins clusterDB all_450_proteins.clusters.tsv
 
 #Get representative protein sequences:
