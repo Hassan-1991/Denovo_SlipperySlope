@@ -30,6 +30,20 @@ sort -k2 /stor/scratch/Ochman/hassan/100724_Complete_Genomes/proteins/accession_
 for i in $(ls | grep "GCA" | cut -f 1,2 -d "_"); do grep "^>" "$i"*genomic.fna | cut -f1 -d " " | tr -d ">" | sed "s/^/"$i"\t/g" >> accession_genomeID.tsv; done
 sort -k1 accession_genomeID.tsv | join -1 1 -2 1 - ../accession_taxonomy.tsv | sed "s/ /\t/g" > accession_genomeID_taxonomy.tsv
 
+#Finally, all the genomes need to dumped in one directory for access at a later step:
+#Making the individual genomes folder:
+#Concatenate all GenBank genomes, all species external genus genomes in one file, linearize, split -l2, rename
+#For ATB:
+egrep "Escherichia|Salmonella|Mycobacterium" /stor/scratch/Ochman/hassan/0318_AllTheBacteria/hq_dataset.species_calls.tsv | egrep -v "Escherichia coli|Mycobacterium tuberculosis|Salmonella enterica" | cut -f1 | sed "s/^/cat \/stor\/scratch\/Ochman\/hassan\/0318_AllTheBacteria\/AllTheBacteria_OG\/\*\//g" | sed "s/$/.fa >> all_ATB_genomes.faa/g" | bash
+#For the rest:
+ls /stor/scratch/Ochman/hassan/100724_Complete_Genomes/genomes/ | grep "GC.*fna" | sed "s/^/cat \/stor\/scratch\/Ochman\/hassan\/100724_Complete_Genomes\/genomes\//g" | sed "s/$/ >> all_GB_genomes.faa/g" | bash
+#Once done:
+cat all_ATB_genomes.faa all_GB_genomes.faa | seqkit fx2tab | sed "s/^/>/g" | sed "s/\t/\n/g" | sed '/^$/d' | split -l 2 #each x-file contains one contig and corresponding sequence
+for i in x* #renaming by the name of contig
+do
+echo "mv ${i} \"\$(grep \"^>\" ${i} | cut -f1 -d \" \" | tr -d \">\")\""
+done
+
 #To make sure these genomes are what it says on the tin, we calculate ANI from one focal strain in each species to all downloaded genomes
 
 #E. coli focal strain: /stor/work/Ochman/hassan/protogene_extension/Ecoli_list/sequence_RS.fasta
