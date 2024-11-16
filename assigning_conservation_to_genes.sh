@@ -1,4 +1,19 @@
-#For annotated proteins:
+awk -F '\t' '($12=="Complete Genome")' /stor/scratch/Ochman/hassan/083024_RefSeq_Genbank_genomes/RS_assembly_summary_04062024.txt | cut -f8 | sed "s/\[//g" | sed "s/\]//g" | sed "s/Coxiella-like/Coxiella/g" | grep -v "^unidentified" | grep -v "^endosymbiont" | grep -v "secondary" | sed "s/^uncultured //g" | cut -f1 -d " " | tr -d "\'" | sort -u > genus_names_indatabase.txt
+
+#For annotated proteins, get the taxonomy from the new database
+#For the ones missing an assignment in the new database, try older method
+grep "^>" /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_proteins/04072024_nonEscherichia_protein.faa | cut -f1 -d " " | tr -d ">" > extragenus_interim1
+sort -k1 extragenus_interim1 | join -1 1 -2 2 - /stor/scratch/Ochman/hassan/100724_Complete_Genomes/proteins/accession_proteinID_taxonomy.tsv | cut -f1,3 -d " " > extragenus_interim2
+#Extract ones that weren't assigned:
+cut -f1 -d " " extragenus_interim2 > test
+cat extragenus_interim1 test > test2
+sort test2 | uniq -c | awk '($1==1)' > test3
+#possible shorter method: cut -f1 -d " " extragenus_interim2 | grep -v -F -f - extragenus_interim1 
+
+#ALT:
+grep "^>" /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_proteins/04072024_nonEscherichia_protein.faa | cut -f1 -d " " | tr -d ">"
+
+###
 grep "^>" /stor/scratch/Ochman/hassan/RefSeq_Complete_Genomes_04062024/04062024_RS_GB_complete_bacterial_proteins/04072024_nonEscherichia_protein.faa > extragenus_interim1 #Extract identifiers from database
 sed "s/ /\[/" extragenus_interim1 | awk -F '[' '{print $1,$NF}' | cut -f1-3 -d " " | tr -d ">" | sort -u > extragenus_interim2_annotatedproteins #Massage
 cut -f1,2 -d " " extragenus_interim2_annotatedproteins > extragenus_interim2_annotatedproteins_genusonly #Only retain genus information
