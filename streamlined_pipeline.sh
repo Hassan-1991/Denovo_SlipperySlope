@@ -397,3 +397,8 @@ END {
 #Next steps later after alignments are made
 #Genus names need to be fixedified
 #Need to think about pruning down to a set of candidates, etc
+
+awk -F'\t' 'BEGIN {OFS="\t"} {found = "absent"; for (i = 2; i <= 44; i++) if ($i ~ /candidate/) {found = "candidate"; break} print $0, found}' ExcelInput.wide.ordered.tsv | cut -f1,45- | awk -F'candidate' 'NF > 2' > ExcelInput.wide.ordered.interim.tsv
+awk -F'\t' 'BEGIN {OFS="\t"} {found = "absent"; for (i = 2; i <= 44; i++) if ($i ~ /candidate/) {found = "candidate"; break} print $0, found}' ExcelInput.wide.ordered.tsv | cut -f1,45- | awk -F'candidate' 'NF > 2' | awk -F '\t' '($NF=="candidate")' | rev | cut -f2- | rev | grep "present" | awk -F'candidate' 'NF < 3' | cut -f1 | grep -v -F -f - ExcelInput.wide.ordered.interim.tsv | cut -f1 | grep -F -f - ExcelInput.wide.ordered.tsv > ExcelInput.wide.ordered.twooutgroups.tsv
+
+(head -1 ExcelInput.wide.ordered.tsv && cat ExcelInput.wide.ordered.twooutgroups.tsv) > temp_file && mv temp_file ExcelInput.wide.ordered.twooutgroups.tsv
