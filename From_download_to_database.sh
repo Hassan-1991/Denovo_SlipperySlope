@@ -92,6 +92,9 @@ seqkit fx2tab Escherichia_excluded.genomes.getorf.all | grep -P -v "\tCTG" | sed
 /stor/work/Ochman/hassan/tools/faTrans -stop Escherichia_excluded.genomes.getorf.ATG_TTG_GTG Escherichia_excluded.genomes.getorf.ATG_TTG_GTG.prot.faa
 pwd
 
+#Mod: ORFIPY
+orfipy --start ATG,TTG,GTG --stop TGA,TAG,TAA --pep Escherichia_excluded.genomes.orfipy Escherichia_excluded.genomes.faa
+
 #Ecoli_excluded genomes:
 awk -F '\t' '($3<93&&$3>89)' ../Escherichia_temp/Escherichia_taxonomy_accession_ANI.tsv | egrep -v "Escherichia_coli|Escherichia_sp" | grep "^GCA" | cut -f1 > Ecoli_excluded_accessions.GBRS.txt
 awk -F '\t' '($3<93&&$3>89)' ../Escherichia_temp/Escherichia_taxonomy_accession_ANI.tsv | egrep -v "Escherichia_coli|Escherichia_sp" | grep -v "^GCA" | cut -f1 > Ecoli_excluded_accessions.ATB.txt
