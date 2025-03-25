@@ -136,6 +136,9 @@ getorf -sequence Ecoli_excluded.genomes.faa -outseq Ecoli_excluded.genomes.getor
 seqkit fx2tab Ecoli_excluded.genomes.getorf.all | grep -P -v "\tCTG" | sed "s/^/>/g" | sed "s/\t/\n/" > Ecoli_excluded.genomes.getorf.ATG_TTG_GTG
 /stor/work/Ochman/hassan/tools/faTrans -stop Ecoli_excluded.genomes.getorf.ATG_TTG_GTG Ecoli_excluded.genomes.getorf.ATG_TTG_GTG.prot.faa
 
+##Mod: ORFIPY
+orfipy --start ATG,TTG,GTG --stop TGA,TAG,TAA --pep Ecoli_excluded.genomes.orfipy Ecoli_excluded.genomes.faa
+
 #Make diamond and blastn databases:
 
 makeblastdb -in Escherichia_excluded.genomes.faa -dbtype nucl -out Escherichia_excluded.genomes
@@ -143,7 +146,11 @@ makeblastdb -in Ecoli_excluded.genomes.faa -dbtype nucl -out Ecoli_excluded.geno
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in Escherichia_excluded.proteins.faa --db Escherichia_excluded.proteins
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in Ecoli_excluded.proteins.faa --db Ecoli_excluded.proteins
 /stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in Escherichia_excluded.genomes.getorf.ATG_TTG_GTG.prot.faa --db Escherichia_excluded.genomes.getorf.ATG_TTG_GTG.prot
-/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in Ecoli_excluded.genomes.getorf.ATG_TTG_GTG.prot.faa --db Ecoli_excluded.genomes.getorf.ATG_TTG_GTG.prot
+##Mod: ORFIPY
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in orfipy_Escherichia_excluded.genomes.faa_out/Escherichia_excluded.genomes.orfipy --db Escherichia_excluded.genomes.orfipy.prot
+##
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in orfipy_Ecoli_excluded.genomes.faa_out/Ecoli_excluded.genomes.orfipy --db Ecoli_excluded.genomes.orfipy.prot
+##Mod: ORFIPY
 
 #######################################################################################################################################
 #Salmonella:
