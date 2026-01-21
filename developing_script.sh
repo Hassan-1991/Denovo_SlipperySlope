@@ -61,3 +61,6 @@ done < "$runfile"
 ./parallelize_run.sh ochmcomp02_running.sh
 ./parallelize_run.sh ochmcomp01_running.sh #Actual run
 
+#Compile all of these results into one file:
+
+find . -maxdepth 1 -name 'fastani_chunk_*' | xargs cat > all_fastANI_comparisons.tsv
