@@ -15,8 +15,6 @@ cd Escherichia_coli_RefSeq_genomes
 wget -q -i 100225_RefSeq_Ecoli_genome_URLs.txt -c
 gunzip -f *.gz
 
-cd ..
-
 #fastANI
 
 # 1) Make a mastercode of all-vs-all fastANI comparisons
@@ -63,7 +61,7 @@ done < "$runfile"
 
 #Compile all of these results into one file:
 
-find . -maxdepth 1 -name 'fastani_chunk_*' | xargs cat > all_fastANI_comparisons.tsv
+find . -maxdepth 1 -name 'fastani_*.tsv' | xargs cat > all_fastANI_comparisons.tsv
 
 cut -f-3 all_fastANI_comparisons.tsv > all_fastANI_comparisons.firstthreecolumns.tsv
 
@@ -79,6 +77,5 @@ END {
 #Identify suspicious entries by scanning the test results
 
 #Get that out, extract remaining genome IDs, these are my concrete, E. coli genome names
-grep -v "GCF_021307345.1_ASM2130734v1_genomic.fna" /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/test | sed "s/ /\t/g" > E.coli_pairwise_ANI.tsv
+grep -v "GCF_021307345.1_ASM2130734v1_genomic.fna" test | sed "s/ /\t/g" > E.coli_pairwise_ANI.tsv
 cut -f1,2 E.coli_pairwise_ANI.tsv | sed "s/\t/\n/g" | sort -u > genome_names.tsv
-
