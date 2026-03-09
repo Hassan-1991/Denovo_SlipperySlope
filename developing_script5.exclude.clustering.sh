@@ -264,5 +264,98 @@ cp mmseqs_covmode0/Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv .
 cut -f1 Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv | sort -u | sed "s/^/>/g" | grep --no-group-separator -w -A1 -F -f - Ecoli.nr.filtered.prot.faa > Ecoli.nr.filtered.prot.longestrepresentative.prot.faa
 cut -f1 Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv | sort -u | sed "s/^/>/g" | grep --no-group-separator -w -A1 -F -f - Ecoli.nr.filtered.CDS.faa > Ecoli.nr.filtered.prot.longestrepresentative.CDS.fna
 
-###SILIX?!?!?
+###Silix:
+
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond makedb --in Ecoli.nr.filtered.prot.longestrepresentative.prot.faa --db Ecoli.nr.filtered.prot.longestrepresentative.prot
+/stor/work/Ochman/hassan/E.coli_ORFan/E.coli_ORFan_pipeline_8-10/diamond blastp -q Ecoli.nr.filtered.prot.longestrepresentative.prot.faa -d Ecoli.nr.filtered.prot.longestrepresentative.prot --outfmt 6 qseqid sseqid pident qcovhsp length mismatch gapopen qstart qend sstart send evalue bitscore --ultra-sensitive --out Ecoli.nr.filtered.prot.longestrepresentative.prot.allvall.tsv -k 0 -b8 -c1
+awk -F '\t' '($3>60&&$4>60&&$12<0.001)' Ecoli.nr.filtered.prot.longestrepresentative.prot.allvall.tsv | cut -f1-3,5- > silix_input.tsv
+/stor/work/Ochman/hassan/tools/silix-1.3.0/src/silix -f cluster_ -i 0.6 -r 0.6 -q -2 -s 3 Ecoli.nr.filtered.prot.longestrepresentative.prot.faa silix_input.tsv | sort -k2 > silix_output.tsv
+
+#Replace the mmseqs2 cluster representatives with the silix cluster reps:
+
+awk '
+BEGIN{
+    FS=OFS="\t"   # input and output are tab-delimited
+}
+
+# First file: lengths table
+# Store length of each protein ID
+NR==FNR{
+    len[$1] = $2
+    next
+}
+
+# Second file: silix_output.tsv
+# col1 = silix cluster ID
+# col2 = protein ID
+{
+    silix_cluster = $1
+    prot          = $2
+
+    # If this is the first protein seen for this SiLiX cluster,
+    # or this protein is longer than the current best one,
+    # then update the "best representative" for that SiLiX cluster
+    if (!(silix_cluster in best_len) || len[prot] > best_len[silix_cluster]) {
+        best_len[silix_cluster] = len[prot]
+        best_rep[silix_cluster] = prot
+    }
+
+    # Also remember which SiLiX cluster each protein belongs to
+    prot2cluster[prot] = silix_cluster
+}
+
+END{
+    # Output:
+    # col1 = protein ID from silix_output.tsv
+    # col2 = SiLiX cluster ID
+    # col3 = longest protein in that SiLiX cluster
+    for (prot in prot2cluster) {
+        clus = prot2cluster[prot]
+        print prot, clus, best_rep[clus]
+    }
+}
+' mmseqs_covmode0/Ecoli.nr.filtered.prot.lengths.tsv silix_output.tsv \
+| sort -k1,1 > silix_longestrep_map.tsv
+
+#Replace
+
+awk '
+BEGIN{
+    FS=OFS="\t"   # tab-delimited input/output
+}
+
+# First file: silix_longestrep_map.tsv
+# col1 = old representative
+# col2 = silix cluster
+# col3 = new longest representative for that silix cluster
+NR==FNR{
+    replacement[$1] = $3
+    next
+}
+
+# Second file: Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv
+# col1 = current representative
+# col2 = member
+# col3 = mmseqs representative
+{
+    old_rep = $1
+
+    # If this representative belongs to a SiLiX cluster,
+    # replace it with the longest representative of that SiLiX cluster
+    if (old_rep in replacement) {
+        $1 = replacement[old_rep]
+    }
+
+    # Print updated row
+    print
+}
+' silix_longestrep_map.tsv Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv \
+> Ecoli.nr.filtered.prot.clusters.longestrepresentative.silixcollapsed.tsv
+
+#Get prot and CDS:
+cut -f1 Ecoli.nr.filtered.prot.clusters.longestrepresentative.silixcollapsed.tsv | sort -u | grep -w --no-group-separator -A1 -F -f - Ecoli.nr.filtered.prot.longestrepresentative.prot.faa > Ecoli_queries.prot.faa
+cut -f1 Ecoli.nr.filtered.prot.clusters.longestrepresentative.silixcollapsed.tsv | sort -u | grep -w --no-group-separator -A1 -F -f - Ecoli.nr.filtered.prot.longestrepresentative.CDS.fna > Ecoli_queries.CDS.fna
+
+
+
 
