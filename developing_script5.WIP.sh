@@ -186,66 +186,83 @@ for f in prodigal/*_prodigal.filtered.gtf; do
   }' "$f" "genemarks2/${i}_genemarks2.filtered.gtf" > "nr_gtf/${i}.filtered.nr.gtf"
 done
 
-####RUN FROM HERE TOMORROW:::#####
+mkdir -p nr_CDS
+mkdir -p nr_prot
 
 #Extract CDS:
 
-for i in $(cat 460_genomes.txt)
+for i in $(ls nr_gtf/*filtered.nr.gtf | rev | cut -f1 -d "/" | rev | cut -f1 -d ".")
 do
-cat Ecoli.460.gtfs/"$i".filtered.nr.gtf | gtf2bed | bedtools getfasta -s -name -fi Ecoli.460.genomes/"$i" -bed - > Ecoli.460.CDS/"$i".filtered.CDS.faa
+cat nr_gtf/"$i".filtered.nr.gtf | gtf2bed | bedtools getfasta -s -name -fi ../Ecoli_nonred_genomes/"$i"_genomic.renamed.fna -bed - > "$i".filtered.nr.CDS.fna
 done
+
+sed -i 's/::.*//' *filtered.nr.CDS.fna
 
 #Translate to protein:
 
-for i in $(cat 460_genomes.txt)
+for i in $(ls nr_gtf/*filtered.nr.gtf | rev | cut -f1 -d "/" | rev | cut -f1 -d ".")
 do
-/stor/work/Ochman/hassan/tools/faTrans -stop Ecoli.460.CDS/"$i".filtered.CDS.faa Ecoli.460.prots/"$i".filtered.prot.faa
+/stor/work/Ochman/hassan/tools/faTrans -stop "$i".filtered.nr.CDS.fna "$i".filtered.nr.prot.faa
 done
+
+for i in *filtered.nr.prot.faa
+do
+seqkit fx2tab "$i" | sed "s/\t$//g" | sed "s/^/>/g" | sed "s/\t/\n/g" > test && mv test "$i"
+done
+
+mv *filtered.nr.CDS.fna nr_CDS
+mv *filtered.nr.prot.faa nr_prot
 
 #Concatenate:
-for i in $(cat 460_genomes.txt)
-do
-genename=$(echo $i | cut -f1,2 -d "_")
-sed "s/>/>"$genename"@/g" Ecoli.460.prots/"$i".filtered.prot.faa >> Ecoli.all.filtered.prot.faa
-sed "s/>/>"$genename"@/g" Ecoli.460.CDS/"$i".filtered.CDS.faa >> Ecoli.all.filtered.CDS.faa
-done
+cat nr_CDS/* > Ecoli.nr.filtered.CDS.faa
+cat nr_prot/* > Ecoli.nr.filtered.prot.faa
 
-#Number of proteins - 2,179,313
-mkdir mmseqs_covmode0
-cp Ecoli.all.filtered.prot.faa mmseqs_covmode0
+#Number of proteins - 2,420,394
+mkdir -p mmseqs_covmode0
+cp Ecoli.nr.filtered.prot.faa mmseqs_covmode0
 cd mmseqs_covmode0
 
-mmseqs createdb Ecoli.all.filtered.prot.faa Ecoli.all.filtered.prot
-
-mmseqs search Ecoli.all.filtered.prot Ecoli.all.filtered.prot resultDB tmp --min-seq-id 0.8 -c 0.8 --cov-mode 0
-mmseqs convertalis Ecoli.all.filtered.prot Ecoli.all.filtered.prot resultDB resultDB.m8
-mmseqs linclust Ecoli.all.filtered.prot clusterDB tmp --min-seq-id 0.8 -c 0.8 --cov-mode 0
-mmseqs createtsv Ecoli.all.filtered.prot Ecoli.all.filtered.prot clusterDB Ecoli.all.filtered.prot.clusters.covmode0.tsv
+mmseqs createdb Ecoli.nr.filtered.prot.faa Ecoli.nr.filtered.prot
+mmseqs linclust Ecoli.nr.filtered.prot clusterDB tmp --min-seq-id 0.6 -c 0.6 --cov-mode 0
+mmseqs createtsv Ecoli.nr.filtered.prot Ecoli.nr.filtered.prot clusterDB Ecoli.nr.filtered.prot.clusters.covmode0.tsv
 
 #Extract longest sequence from each cluster
-#For this purpose, first extract lengths
-seqkit fx2tab Ecoli.all.filtered.prot.faa | awk -F '\t' '{print $1,length($2)}' | sort -k1 > Ecoli.all.filtered.prot.lengths.tsv
+seqkit fx2tab Ecoli.nr.filtered.prot.faa | awk -F '\t' '{print $1"\t"length($2)}' | sort -k1 > Ecoli.nr.filtered.prot.lengths.tsv
 
-sort -k2 mmseqs_covmode0/Ecoli.all.filtered.prot.clusters.covmode0.tsv | join -1 2 -2 1 - Ecoli.all.filtered.prot.lengths.tsv | #attaching lengths to each gene
-sort -k2 | awk '{print $0 | "sort -k2,2 -k3,3n"}' | awk '!seen[$2]++' | sort -k2 > representative_sequences.interim.tsv #Longest sequence per cluster retained
+# make longest-member / member / mmseqs-representative table
+awk '
+BEGIN{FS=OFS="\t"}
+NR==FNR {
+    len[$1]=$2
+    next
+}
+{
+    rep=$1
+    mem=$2
 
-#Make a three-column tsv file which lists longest sequence per cluster in col1, representative sequence picked by mmseqs2 in column3, and genes belonging to that cluster in col2
-sort -k1 mmseqs_covmode0/Ecoli.all.filtered.prot.clusters.covmode0.tsv | join -1 1 -2 2 -o 1.1 2.2 1.2 2.1 - representative_sequences.interim.tsv | awk '{print $4,$3,$1}' | sed "s/ /\t/g" > Ecoli.all.filtered.prot.clusters.longestrepresentative.tsv
+    if (!(rep in longest_len) || len[mem] > longest_len[rep]) {
+        longest_len[rep]=len[mem]
+        longest_id[rep]=mem
+    }
+
+    reps[NR]=rep
+    mems[NR]=mem
+    n=NR
+}
+END{
+    for (i=1; i<=n; i++) {
+        print longest_id[reps[i]], mems[i], reps[i]
+    }
+}
+' Ecoli.nr.filtered.prot.lengths.tsv Ecoli.nr.filtered.prot.clusters.covmode0.tsv \
+> Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv
 
 #Get CDS and protein sequences
-seqkit fx2tab Ecoli.all.filtered.prot.faa | sed "s/\t$//g" | sed "s/^/>/g" | sed "s/\t/\n/g" > Ecoli.all.filtered.prot.linear.faa
-cut -f1 Ecoli.all.filtered.prot.clusters.longestrepresentative.tsv | sort -u | grep --no-group-separator -A1 -F -f - Ecoli.all.filtered.prot.linear.faa > Ecoli.all.filtered.prot.clusters.longestrepresentative.faa
-cut -f1 Ecoli.all.filtered.prot.clusters.longestrepresentative.tsv | sort -u | grep --no-group-separator -A1 -F -f - Ecoli.all.filtered.CDS.faa > Ecoli.all.filtered.prot.clusters.longestrepresentative.CDS.faa
+#clustering done, so exit directory
+cd /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/Ecoli_nonred_gffs
+cp mmseqs_covmode0/Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv .
+cut -f1 Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv | sort -u | sed "s/^/>/g" | grep --no-group-separator -w -A1 -F -f - Ecoli.nr.filtered.prot.faa > Ecoli.nr.filtered.prot.longestrepresentative.prot.faa
+cut -f1 Ecoli.nr.filtered.prot.clusters.longestrepresentative.tsv | sort -u | sed "s/^/>/g" | grep --no-group-separator -w -A1 -F -f - Ecoli.nr.filtered.CDS.faa > Ecoli.nr.filtered.prot.longestrepresentative.CDS.fna
 
-#Extract the sequences in each cluster and place them in files
-cut -f1 mmseqs2_recluster_silix_output.tsv | sort | uniq -c | grep -v " 1 " | rev | cut -f1 -d " " | rev | sed "s/$/\t/g" | grep -F -f - mmseqs2_recluster_silix_output.tsv | sed "s/\t/,/g" > mmseqs2_recluster_silix_output.interim.tsv
-for i in $(cat mmseqs2_recluster_silix_output.interim.tsv | cut -f1 -d ",")
-do
-echo $i | sed "s/$/,/g" | grep -F -f - mmseqs2_recluster_silix_output.interim.tsv | cut -f2 -d ',' | sed "s/^/>/g" | grep --no-group-separator -A1 -F -f - ../Ecoli.all.filtered.prot.clusters.longestrepresentative.faa > "$i".seqs.faa
-done
+###SILIX?!?!?
 
-#replace:
-grep "^>" Ecoli.all.filtered.prot.clusters.longestrepresentative.faa | tr -d ">" > Ecoli.all.filtered.prot.clusters.longestrepresentative.txt
-awk 'FNR==NR {rep[$2]=$1; next} {for(i=1;i<=NF;i++) if ($i in rep) $i=rep[$i]; print}' mmseqs2_silix/replacements.tsv Ecoli.all.filtered.prot.clusters.longestrepresentative.txt | sort -u > Ecoli.all.filtered.prot.clusters.longestrepresentative.replaced.txt
-
-grep --no-group-separator -A1 -F -f Ecoli.all.filtered.prot.clusters.longestrepresentative.replaced.txt Ecoli.all.filtered.prot.linear.faa > Ecoli.all.filtered.prot.clusters.longestrepresentative.replaced.faa
