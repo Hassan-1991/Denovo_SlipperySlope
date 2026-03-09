@@ -31,6 +31,20 @@ awk '
 }
 ' nonred_genomes.withclusters.txt | bash
 
+#Save the mappings between old and new names for later:
+
+awk '
+{
+  cluster=$1
+  file=$2
+  count[cluster]++
+  newname="C"cluster"G"count[cluster]"_genomic.fna"
+  src="../../Escherichia_coli_RefSeq_genomes/"file
+  dst="Ecoli_nonred_genomes/"newname
+  print "cp \""src"\" \""dst"\""
+}
+' | sed "s/ /\//g" | cut -f5,7 -d "/" | sed "s/\//\t/g" | tr -d "\"" > renames_tally.tsv
+
 for f in *.fna; do
   prefix=$(basename "$f" | cut -f1 -d "_")
   awk -v pfx="$prefix" '
