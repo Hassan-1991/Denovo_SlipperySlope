@@ -97,6 +97,9 @@ mkdir -p workdir
 
 mv *fna refdir
 
+conda activate phame
+phame Ecoli.ctl
+
 #Edit .ctl file appropriately:
 
    refdir = /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/phame/refdir/  # directory where reference (Complete) files are located
