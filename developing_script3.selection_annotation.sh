@@ -83,6 +83,9 @@ mkdir -p phame
 awk '!seen[$1]++' nonred_genomes.withclusters.txt | sort -k2 > temp
 sort -k1 renames_tally.tsv | join -1 1 -2 2 - temp | cut -f2 -d " " | sed "s/^/cp Ecoli_nonred_genomes\//g" | sed "s/$/ phame/g" | sed "s/genomic/genomic.renamed/g" | bash
 
+#ALL:
+sort -k2 nonred_genomes.withclusters.txt | join -1 2 -2 1 - renames_tally.tsv | cut -f2- -d " " | awk '{print "cp Ecoli_nonred_genomes\/"$2,"phame_all/"$1"_"$2}' | sed "s/genomic/genomic.renamed/g" | bash
+
 #Download an outgroup (E. fergusonii):
 cd /stor/scratch/Ochman/hassan/100724_Complete_Genomes
 grep "Escherichia fergusonii" 100225_RefSeq_assembly_summary.txt | grep "Complete Genome" | grep -i "reference genome" | cut -f20 | awk -F '/' '{print $0"/"$NF"_genomic.fna.gz"}' | sed "s/^/wget /g" | bash
