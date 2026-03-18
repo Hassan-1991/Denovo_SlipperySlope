@@ -45,6 +45,13 @@ awk '
 }
 ' | sed "s/ /\//g" | cut -f5,7 -d "/" | sed "s/\//\t/g" | tr -d "\"" > renames_tally.tsv
 
+#Also save the new genome names - cluster maps for later:
+
+#Put this in appropriate point in pipeline:
+sort -k1 renames_tally.tsv | join -1 1 -2 2 - nonred_genomes.withclusters.txt | sed "s/_genomic.fna//g" | cut -f2- -d " " | awk '{print $1,"Ecoli@"$2}' | sed "s/ /\t/g" | sort -k1 > genome_cluster.tsv
+
+#Rename:
+
 for f in *.fna; do
   prefix=$(basename "$f" | cut -f1 -d "_")
   awk -v pfx="$prefix" '
