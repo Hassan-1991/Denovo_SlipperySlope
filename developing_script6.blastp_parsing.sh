@@ -68,3 +68,8 @@ END {
     }
 }' | sort -t $'\t' -k1,1 -k2,2 -k4,4 > all_genes_of_interest.presence.tsv
 
+awk '($4!~"@")' all_genes_of_interest.presence.tsv | awk '($3=="present")' | cut -f1 | sort -u > step1_nonORFans.txt
+grep -v -w -F -f step1_nonORFans.txt Ecoli_queries.prot.faa | grep "^>" | tr -d ">" > step1_ORFans.txt
+
+grep --no-group-separator -A1 -w -F -f step1_ORFans.txt Ecoli_queries.prot.faa > step1_ORFans.prot.faa
+grep --no-group-separator -A1 -w -F -f step1_ORFans.txt Ecoli_queries.CDS.fna > step1_ORFans.CDS.fna
