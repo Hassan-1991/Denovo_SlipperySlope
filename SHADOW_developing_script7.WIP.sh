@@ -22,3 +22,42 @@ blastn -query Ecoli_queries.CDS.fna -db /stor/scratch/Ochman/hassan/100724_Compl
 #Pangenome:
 blastn -query Ecoli_queries.CDS.fna -db Ecoli.genome.pangenomedb -outfmt 0 -num_threads 72 -num_descriptions 1761 -num_alignments 1761 -evalue 200000 -out Ecoli_pangenome_regular_blastn
 
+mkdir regular
+mv *_regular_blastn regular
+cd regular
+
+#We split each of the blast files to generate query-specific files
+#Each resulting file is named after the query sequence
+
+for i in extragenus intragenus pangenome
+do
+awk -v prefix="${i}_" '
+/^Query=/ {
+    close(file)
+    q = $0
+    sub(/^Query= /, "", q)
+    file = prefix q "_blastn"
+    next
+}
+{
+    if (file) print > file
+}' Ecoli_"$i"_regular_blastn
+done
+
+#Delete the query-specific files that contain "No hits found", i.e. no blast alignment
+
+find . -name "*_blastn" -print0 | xargs -0 grep "No hits found" | grep -v "regular" | cut -f1 -d ":" | sed "s/^/rm /g" | bash
+
+for i in extragenus intragenus pangenome
+do
+header=$(head -14 Ecoli_"$i"_regular_blastn) #assign header to variable
+footer=$(tail -11 Ecoli_"$i"_regular_blastn) #assign footer to variable
+for file in $(ls "$i"_*blastn); do
+    # Prepend the header to the file
+    { echo "$header"; cat "$file"; } > temp_file && mv temp_file "$file"
+
+    # Append the footer to the file
+    { cat "$file"; echo "$footer"; } > temp_file && mv temp_file "$file"
+done
+done
+
