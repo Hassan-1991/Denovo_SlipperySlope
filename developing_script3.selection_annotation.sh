@@ -49,7 +49,7 @@ awk '
 #Also save the new genome names - cluster maps for later:
 sort -k1 renames_tally.tsv | join -1 1 -2 2 - nonred_genomes.withclusters.txt | sed "s/_genomic.fna//g" | cut -f2- -d " " | awk '{print $1,"Ecoli@"$2}' | sed "s/ /\t/g" | sort -k1 > genome_cluster.tsv
 #And the contig names:
-grep "^>" Ecoli.genome.pangenomedb.fna  | tr -d ">" | awk -F '_' '{print $1"\t"$0}' | sort -k1 | join -1 1 -2 1 - ../genome_cluster.tsv | sed "s/ /\t/g" > ../genome_cluster.contigs.tsv
+grep "^>" Ecoli_nonred_gffs/Ecoli.genome.pangenomedb.fna  | tr -d ">" | awk -F '_' '{print $1"\t"$0}' | sort -k1 | join -1 1 -2 1 - genome_cluster.tsv | sed "s/ /\t/g" > genome_cluster.contigs.tsv
 
 #Rename:
 
