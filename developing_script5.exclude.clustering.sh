@@ -186,6 +186,13 @@ for f in prodigal/*_prodigal.filtered.gtf; do
   }' "$f" "genemarks2/${i}_genemarks2.filtered.gtf" > "nr_gtf/${i}.filtered.nr.gtf"
 done
 
+#Sort these .gtf files for subsequent use:
+
+for i in $(ls *.filtered.nr.gtf)
+do
+bedtools sort -i $i > temp && mv temp $i
+done
+
 mkdir -p nr_CDS
 mkdir -p nr_prot
 
