@@ -104,3 +104,26 @@ blastn -query proxflanks.fna -db ../Ecoli.genome.pangenomedb -outfmt '6 qseqid s
 #choice: max-hsps 1
 
 #Do next steps after blasts are done
+
+cat proxflanks_extragenus_blastn proxflanks_intragenus_blastn proxflanks_pangenome_blastn |
+cut -f-2 | sed "s/_/\t/1" | sed "s/::/\t/g" | awk '{print $2"%"$NF"\t"$1}' |
+cut -f1 | sort | uniq -c | awk '($1==2)' |
+awk '{print $2}' | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] "," $2) } END { for (value in values) { print value "\t" values[value] } }' |
+sed -E 's/_([0-9]+)_/_\1\t/' | cut -f1,3 > proxflanks_targets.txt
+
+cat geneflanks_extragenus_blastn geneflanks_intragenus_blastn geneflanks_pangenome_blastn |
+sed "s/_up_/_up%/g" | sed "s/_down_/_down%/g" | sed "s/\t/%/" | cut -f1 |
+cut -f1,3 -d "%" | sed "s/%/\t/g" | sed "s/_up/\tup/g" | sed "s/_down/\tdown/g" |
+awk -F '\t' '{print $2"\t"$1">"$3}' | sort -u | cut -f2 | sort | uniq -c | awk '($1==2)' |
+awk '{print $2}' | rev | sed "s/>/%/1" | rev | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > geneflanks_targets.txt
+
+####
+
+for i in $(cut -f 1 proxflanks_targets.txt)
+do
+  echo "awk -F '\t' '(\$1==\"$i\")' proxflanks_targets.txt | sed \"s/,/\\n/g\" | sed \"s/\t/\\n/g\" | sed \"s/^ *//g\" | tail -n+2 > ${i}_proxflanks_targetlist.txt"
+  
+  echo "awk -F '\t' 'NR==FNR{seen[\$0]; next} index(\$1,\"$i\") && (\$2 in seen)' ${i}_proxflanks_targetlist.txt <(cat proxflanks_extragenus_blastn proxflanks_intragenus_blastn proxflanks_pangenome_blastn) | cut -f2- | awk -F '\t' '{OFS=\"\"}{print \$12,\"%\",\$13,\"%\",\$9,\"\t\",\$1}' | awk -F'\t' '{ values[\$2] = (values[\$2] == \"\" ? \$1 : values[\$2] \", \" \$1) } END { for (value in values) { print value \"\t\" values[value] } }' | sed \"s/%plus, /%/g\" | sed \"s/%minus, /%/g\" | sed \"s/%plus/\tplus/g\" | sed \"s/%minus/\tminus/g\" | sed \"s/%/,/g\" | sed \"s/\t/,/g\" | sed \"s/ //g\" | awk -F',' '{identifier = \$1; values = \$2 \",\" \$3 \",\" \$4 \",\" \$5; split(values, array, \",\"); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, \$6; } else { print identifier, middle2, middle1, -difference, \$6; } }' > ${i}_proxflanks_intervalinfo"
+done
+
+#Now the same shit for geneflanks.....
