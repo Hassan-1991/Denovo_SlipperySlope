@@ -4,6 +4,19 @@ cat prodigal_prot/*prot.faa genemarks2_prot/*prot.faa > Ecoli.prot.pangenomedb.f
 #Concatenate, genomes:
 cat ../Ecoli_nonred_genomes/*_genomic.renamed.fna > Ecoli.genome.pangenomedb.fna
 
+#For a later stage, we should do the following as well:
+mkdir individual
+cp Ecoli.genome.pangenomedb.fna individual
+seqkit fx2tab Ecoli.genome.pangenomedb.fna | sed "s/\t$//g" | sed "s/^/>/g" | sed "s/\t/\n/g" > temp && mv temp Ecoli.genome.pangenomedb.fna
+split -l 2 Ecoli.genome.pangenomedb.fna
+for i in x*
+do
+rename=$(grep "^>" $i | tr -d ">")
+mv $i $rename
+done
+rm Ecoli.genome.pangenomedb.fna
+mv * /stor/scratch/Ochman/hassan/100724_Complete_Genomes/individual_genomes/
+
 #Extract proteins encoded from all ORFs:
 conda activate orfipy
 orfipy --start ATG,TTG,GTG --stop TGA,TAG,TAA --pep Ecoli.genome.pangenomedb.orfipy Ecoli.genome.pangenomedb.fna
