@@ -117,13 +117,63 @@ cut -f1,3 -d "%" | sed "s/%/\t/g" | sed "s/_up/\tup/g" | sed "s/_down/\tdown/g" 
 awk -F '\t' '{print $2"\t"$1">"$3}' | sort -u | cut -f2 | sort | uniq -c | awk '($1==2)' |
 awk '{print $2}' | rev | sed "s/>/%/1" | rev | awk -F'%' '{ values[$1] = (values[$1] == "" ? $2 : values[$1] ", " $2) } END { for (value in values) { print value "\t" values[value] } }' > geneflanks_targets.txt
 
-####
-
 for i in $(cut -f 1 proxflanks_targets.txt)
 do
-  echo "awk -F '\t' '(\$1==\"$i\")' proxflanks_targets.txt | sed \"s/,/\\n/g\" | sed \"s/\t/\\n/g\" | sed \"s/^ *//g\" | tail -n+2 > ${i}_proxflanks_targetlist.txt"
-  
+  echo "awk -F '\t' '(\$1==\"$i\")' proxflanks_targets.txt | sed \"s/,/\\n/g\" | sed \"s/\t/\\n/g\" | sed \"s/^ *//g\" | tail -n+2 > ${i}_proxflanks_targetlist.txt"  
   echo "awk -F '\t' 'NR==FNR{seen[\$0]; next} index(\$1,\"$i\") && (\$2 in seen)' ${i}_proxflanks_targetlist.txt <(cat proxflanks_extragenus_blastn proxflanks_intragenus_blastn proxflanks_pangenome_blastn) | cut -f2- | awk -F '\t' '{OFS=\"\"}{print \$12,\"%\",\$13,\"%\",\$9,\"\t\",\$1}' | awk -F'\t' '{ values[\$2] = (values[\$2] == \"\" ? \$1 : values[\$2] \", \" \$1) } END { for (value in values) { print value \"\t\" values[value] } }' | sed \"s/%plus, /%/g\" | sed \"s/%minus, /%/g\" | sed \"s/%plus/\tplus/g\" | sed \"s/%minus/\tminus/g\" | sed \"s/%/,/g\" | sed \"s/\t/,/g\" | sed \"s/ //g\" | awk -F',' '{identifier = \$1; values = \$2 \",\" \$3 \",\" \$4 \",\" \$5; split(values, array, \",\"); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, \$6; } else { print identifier, middle2, middle1, -difference, \$6; } }' > ${i}_proxflanks_intervalinfo"
 done
 
-#Now the same shit for geneflanks.....
+for i in $(cut -f 1 geneflanks_targets.txt)
+do
+  echo "awk -F '\t' '(\$1==\"$i\")' geneflanks_targets.txt | sed \"s/,/\\n/g\" | sed \"s/\t/\\n/g\" | sed \"s/^ *//g\" | tail -n+2 > ${i}_geneflanks_targetlist.txt"
+  echo "awk -F '\t' 'NR==FNR{seen[\$0]; next} index(\$1,\"$i\") && (\$2 in seen)' ${i}_geneflanks_targetlist.txt <(cat geneflanks_extragenus_blastn geneflanks_intragenus_blastn geneflanks_pangenome_blastn) | sed \"s/_up_/\\t/g\" | sed \"s/_down_/\\t/g\" | cut -f3- | awk -F '\t' '{OFS=\"\"}{print \$12,\"%\",\$13,\"%\",\$9,\"\t\",\$1}' | awk -F'\t' '{ values[\$2] = (values[\$2] == \"\" ? \$1 : values[\$2] \", \" \$1) } END { for (value in values) { print value \"\t\" values[value] } }' | sed \"s/%plus, /%/g\" | sed \"s/%minus, /%/g\" | sed \"s/%plus/\tplus/g\" | sed \"s/%minus/\tminus/g\" | sed \"s/%/,/g\" | sed \"s/\t/,/g\" | sed \"s/ //g\" | awk -F',' '{identifier = \$1; values = \$2 \",\" \$3 \",\" \$4 \",\" \$5; split(values, array, \",\"); asort(array); middle1 = array[2]; middle2 = array[3]; difference = middle2 - middle1; if (difference >= 0) { print identifier, middle1, middle2, difference, \$6; } else { print identifier, middle2, middle1, -difference, \$6; } }' > ${i}_geneflanks_intervalinfo"
+done
+
+#Compile:
+
+for i in $(ls *intervalinfo | rev | cut -f4- -d "_" | rev | sort -u)
+do
+ls "$i"_*intervalinfo | sed "s/^/cat /g" | bash >> "$i"_compiled_intervalinfo.txt
+done
+
+########
+
+#Attach taxonomy info to each file
+#Make an interim file that contains the taxonomy information for all target contigs
+#Otherwise searching the massive database would take a long time
+cut -f1 -d " " *_compiled_intervalinfo.txt | sort -u > alltaxa.compiled_intervalinfo.txt
+cat /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_extragenus_genome_contig_taxa.reduced.noescherichia.tsv /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_intragenus_genome_contig_taxa.tsv /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/genome_cluster.contigs.tsv | grep -w -F -f alltaxa.compiled_intervalinfo.txt - | cut -f2- > alltaxa.compiled_intervalinfo.interim
+sort -k1 alltaxa.compiled_intervalinfo.interim -o alltaxa.compiled_intervalinfo.interim
+
+#Attach taxonomy information from the nascent file to the interval info files
+for i in $(ls *_compiled_intervalinfo.txt | rev | cut -f3- -d "_" | rev)
+do
+sort -k1 "$i"_compiled_intervalinfo.txt -o "$i"_compiled_intervalinfo.txt
+cut -f1 -d " " "$i"_compiled_intervalinfo.txt | sort -u > temp
+grep -w -F -f temp alltaxa.compiled_intervalinfo.interim | sort -k1 | join -1 1 -2 1 - "$i"_compiled_intervalinfo.txt > "$i"_compiled_intervalinfo.taxa.txt
+done
+
+####Extract sequences####
+
+#To detect homologs in flank-bounded regions, we extract +/-300bp from both edges of the interval
+for i in $(ls *_compiled_intervalinfo.txt | rev | cut -f3- -d "_" | rev)
+do
+awk '($4<50000)' "$i"_compiled_intervalinfo.txt | awk '{print $1,$2-300,$3+300,$4,$5}' | awk '{$2=($2<1?1:$2); $3=($3<1?1:$3); print}' | sort -u > "$i"_compiled_intervalinfo.extended.txt
+done
+
+#We then use samtools to extract the sequences from the respective genomes
+#This is a time-consuming step, so it's placed within wrappers to parallelize
+#See Preparing_database.sh to see how the individual_genomes directory was made
+
+for variable in $(ls *_compiled_intervalinfo.extended.txt | rev | cut -f3- -d "_" | rev)
+do
+    command="grep \"plus\" ${variable}_compiled_intervalinfo.extended.txt | awk '{OFS=\"\"}{print \"samtools faidx /stor/scratch/Ochman/hassan/100724_Complete_Genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$2,\"-\",\$3}' | sed \"s/\$/ >> ${variable}_interval.fna/g\" && grep \"minus\" ${variable}_compiled_intervalinfo.extended.txt | awk '{OFS=\"\"}{print \"samtools faidx -i /stor/scratch/Ochman/hassan/100724_Complete_Genomes/individual_genomes/\",\$1,\" \",\$1,\":\",\$2,\"-\",\$3}' | sed \"s/\$/ >> ${variable}_interval.fna/g\""
+    output_file="${variable}_joint_samtools.sh"
+    bash -c "$command" > "$output_file"
+done
+
+conda activate samtools_env
+
+ls *samtools.sh | sed "s/^/bash /g" > running.sh
+/stor/work/Ochman/hassan/tools/parallelize_run.sh running.sh
+
