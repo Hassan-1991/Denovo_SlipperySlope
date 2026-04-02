@@ -26,9 +26,24 @@ done #parallelize however
 for i in $(ls *_compiled_redundant.fna | rev | cut -f3- -d "_" | rev)
 do
 length=$(seqkit fx2tab "$i".query.prot.faa | awk '{print length($2)}')
-awk -F '\t' -v var="$length" '{cov = ($8 - $7 + 1) / var; print $0 "\t" cov}' "$i".results.ssearch.tab | awk -F '\t' '($NF>=0.6&&$11<0.001)' | cut -f2 | sed "s/frame1_//g" | sed "s/frame2_//g" | cut -f3- -d "_" | sed "s/_/\t/1" | sed "s/^/"$i"\t/g" >> ORF_presence.eval001.tsv
-awk -F '\t' -v var="$length" '{cov = ($8 - $7 + 1) / var; print $0 "\t" cov}' "$i".results.ssearch.tab | awk -F '\t' '($NF<0.6&&$11<0.001)' | cut -f2 | sed "s/frame1_//g" | sed "s/frame2_//g" | cut -f3- -d "_" | sed "s/_/\t/1" | sed "s/^/"$i"\t/g" >> ORF_partial.eval001.tsv
+awk -F '\t' -v var="$length" '{cov = ($8 - $7 + 1) / var; print $0 "\t" cov}' "$i".results.ssearch.tab | awk -F '\t' '($NF>=0.6&&$11<0.001)' | cut -f2 | sed "s/frame1_//g" | sed "s/frame2_//g" | cut -f3- -d "_" | sed "s/_/\t/1" | sed "s/^/"$i"\t/g" | sed "s/$/\tORFpresent/g" >> all_genes_of_interest.noncoding.interim
+awk -F '\t' -v var="$length" '{cov = ($8 - $7 + 1) / var; print $0 "\t" cov}' "$i".results.ssearch.tab | awk -F '\t' '($NF<0.6&&$11<0.001)' | cut -f2 | sed "s/frame1_//g" | sed "s/frame2_//g" | cut -f3- -d "_" | sed "s/_/\t/1" | sed "s/^/"$i"\t/g" | sed "s/$/\tORFpartial/g" >> all_genes_of_interest.noncoding.interim
+grep ">regular" "$i"_compiled_redundant.fna | tr -d ">" | sed "s/_/\t/1" | sed "s/^/"$i"\t/g" | sed "s/$/\tnoncoding/g" >> all_genes_of_interest.noncoding.interim
+grep ">flank" "$i"_compiled_redundant.fna | tr -d ">" | sed "s/_/\t/1" | sed "s/^/"$i"\t/g" | sed "s/$/\t/g" | sed "s/$/\tflankpresent/g" >> all_genes_of_interest.noncoding.interim
 done
 
-#These files will be required eventually for purposes of compiling results
+sed -i "s/\t\t/\t/g" all_genes_of_interest.noncoding.interim
+
+#These files will be required eventually to compile results
+
+sort -u all_genes_of_interest.noncoding.interim -o all_genes_of_interest.noncoding.interim
+
+grep -F -w -f <(cut -f3 all_genes_of_interest.noncoding.interim | sort -u) \
+/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_extragenus_genome_contig_taxa.reduced.noescherichia.tsv \
+/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_intragenus_genome_contig_taxa.tsv \
+/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/genome_cluster.contigs.tsv |
+cut -f2- -d ":" | sort -u | sort -k2 > interim
+
+sort -k3 all_genes_of_interest.noncoding.interim | join -1 3 -2 2 - interim | awk '{OFS="\t"}{print $2,$5,$4,$NF}' > all_genes_of_interest.noncoding.tsv
+
 
