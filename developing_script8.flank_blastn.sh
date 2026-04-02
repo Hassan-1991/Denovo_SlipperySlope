@@ -136,23 +136,6 @@ do
 ls "$i"_*intervalinfo | sed "s/^/cat /g" | bash >> "$i"_compiled_intervalinfo.txt
 done
 
-########
-
-#Attach taxonomy info to each file
-#Make an interim file that contains the taxonomy information for all target contigs
-#Otherwise searching the massive database would take a long time
-cut -f1 -d " " *_compiled_intervalinfo.txt | sort -u > alltaxa.compiled_intervalinfo.txt
-cat /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_extragenus_genome_contig_taxa.reduced.noescherichia.tsv /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_intragenus_genome_contig_taxa.tsv /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/genome_cluster.contigs.tsv | grep -w -F -f alltaxa.compiled_intervalinfo.txt - | cut -f2- > alltaxa.compiled_intervalinfo.interim
-sort -k1 alltaxa.compiled_intervalinfo.interim -o alltaxa.compiled_intervalinfo.interim
-
-#Attach taxonomy information from the nascent file to the interval info files
-for i in $(ls *_compiled_intervalinfo.txt | rev | cut -f3- -d "_" | rev)
-do
-sort -k1 "$i"_compiled_intervalinfo.txt -o "$i"_compiled_intervalinfo.txt
-cut -f1 -d " " "$i"_compiled_intervalinfo.txt | sort -u > temp
-grep -w -F -f temp alltaxa.compiled_intervalinfo.interim | sort -k1 | join -1 1 -2 1 - "$i"_compiled_intervalinfo.txt > "$i"_compiled_intervalinfo.taxa.txt
-done
-
 ####Extract sequences####
 
 #To detect homologs in flank-bounded regions, we extract +/-300bp from both edges of the interval
@@ -177,3 +160,17 @@ conda activate samtools_env
 ls *samtools.sh | sed "s/^/bash /g" > running.sh
 /stor/work/Ochman/hassan/tools/parallelize_run.sh running.sh
 
+#I have to figure out a way to save the error logs to parse later
+
+#Fixing missing/interrupted sequences:
+
+for i in $(ls *_interval.fna | rev | cut -f2- -d "_" | rev)
+do
+seqkit fx2tab "$i"_interval.fna | awk '(length($2)==0)' | tr -d ">" | sed "s/^/"$i"\t/g" | sort -u > samtools_sanitycheck.tsv
+awk 'index($0,">") && $0 !~ /^>/' "$i"_interval.fna | sed "s/^/"$i"\t/g" | awk '{print $1}' | sort -u >> samtools_sanitycheck.tsv
+done
+
+sort -u samtools_sanitycheck.tsv -o samtools_sanitycheck.tsv
+
+cut -f1 samtools_sanitycheck.tsv | sort -u | sed "s/^/rm /g" | sed "s/$/_interval.fna/g" | bash
+cut -f1 samtools_sanitycheck.tsv | sort -u | sed "s/^/bash /g" | sed "s/$/_joint_samtools.sh/g" | bash
