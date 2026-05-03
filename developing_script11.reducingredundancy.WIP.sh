@@ -39,6 +39,114 @@ seqkit fx2tab Ecoli.nr.filtered.prot.longestrepresentative.reduced2.faa | awk '{
   --out Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.tsv \
   -k 0 -b8 -c1
 
+#Still ongoing
+
+#parse:
+cp /stor/scratch/Ochman/hassan/nr/nodes.dmp .
+
+#Python code:
+
+#!/usr/bin/env python3
+import sys
+from collections import defaultdict, deque
+
+parent_to_children = defaultdict(list)
+
+with open("nodes.dmp") as f:
+    for line in f:
+        parts = [x.strip() for x in line.split("|")]
+        taxid, parent = parts[0], parts[1]
+        parent_to_children[parent].append(taxid)
+
+root = sys.argv[1]   # e.g. 562
+
+q = deque([root])
+while q:
+    t = q.popleft()
+    print(t)
+    q.extend(parent_to_children[t])
+
+#######
+
+#!/usr/bin/env python3
+import sys
+
+nodes = "nodes.dmp"
+taxid = sys.argv[1]
+
+parent = {}
+
+with open(nodes) as f:
+    for line in f:
+        parts = [x.strip() for x in line.split("|")]
+        child, par = parts[0], parts[1]
+        parent[child] = par
+
+t = taxid
+while True:
+    print(t)
+    if t == parent[t]:   # root
+        break
+    t = parent[t]
+
+############
+
+python get_ancestor_taxids.py 562 > Ecoli_562_ancestor_taxids.txt
+python get_ancestor_taxids.py 620 >> Ecoli_562_ancestor_taxids.txt
+sort -u Ecoli_562_ancestor_taxids.txt -o Ecoli_562_ancestor_taxids.txt
+python get_descendant_taxids.py 562 > Ecoli_562_descendant_taxids.txt
+python get_descendant_taxids.py 620 >> Ecoli_562_descendant_taxids.txt
+sort -u Ecoli_562_descendant_taxids.txt -o Ecoli_562_descendant_taxids.txt
+
+awk -F '\t' '
+ARGIND==1 { anc[$1]; next }
+ARGIND==2 { desc[$1]; next }
+
+{
+  lname = tolower($NF)
+
+  # drop rows with missing or specific unwanted labels
+  if ($NF == "N/A" || lname ~ /uncultured[[:space:]]+escherichia|escherichia[[:space:]]+sp\./) next
+
+  taxfield = $(NF-1)
+
+  # ancestors: strict whole-field match
+  if (taxfield in anc) next
+
+  # descendants: loose token match
+  n = split(taxfield, a, /[^0-9]+/)
+  for (i=1; i<=n; i++)
+    if (a[i] in desc) next
+
+  print
+}
+' Ecoli_562_ancestor_taxids.txt \
+  Ecoli_562_descendant_taxids.txt \
+  Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.tsv > Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.badids_removed.tsv
+
+#Gotta work in how to remove viral ids too
+
+cat Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.tsv |
+awk -F '\t' '($5>60&&$16<0.001)' |
+awk -F '\t' '($19!~"Escherichia coli")' |
+awk -F '\t' '($19!~"Shigella")' |
+awk -F '\t' '($19!~"Escherichia sp.")' |
+awk -F '\t' '($19!="N/A")' |
+awk -F '\t' '($19!~"Enterobacteriaceae")' |
+awk -F '\t' '($19!="Escherichia")' |
+awk -F '\t' '($19!="Caudoviricetes sp.")' |
+awk -F '\t' '($19!="unclassified Escherichia")' |
+awk -F '\t' '($19!="Bacteriophage sp.")' |
+awk -F '\t' '($19!="uncultured bacterium")' |
+awk -F '\t' '($19!="Klebsiella pneumoniae IS22")' |
+awk -F '\t' '($19!="Enterobacterales")' |
+awk -F '\t' '($19!="Escherichia;uncultured bacterium")' |
+awk -F '\t' '($19!="Enterobacter sp. EC-NT1")' |
+awk -F '\t' '($19!="Escherichia;Caudoviricetes sp.")' |
+awk -F '\t' '($19!="Salmonella sp. S13")' |
+awk -F '\t' '($19!="Escherichia;Salmonella sp. S13")' |
+awk -F '\t' '($19!~"phage")' |
+cut -f1,19 | sort -u | cut -f2 | sort | uniq -c | sort -nrk1 > nr.interim.tsv
 
 #Windows approach (Maybe not necessary)
 
