@@ -66,3 +66,79 @@ PosSelect = 1  # 0:No; 1:use PAML; 2:use HyPhy; 3:use both # these analysis need
 #Rename trees:
 awk -F'\t' 'NR==FNR{m[$1]=$3; next} {for(k in m) gsub(k"_", m[k]"_"k"_"); gsub(/_genomic_renamed/, ""); print}' genome_cluster.contigs.tsv phame/workdir/results/trees/RAxML_bestTree.Ecoli_all
 
+
+
+#Just for E. coli, since we have the poppunk info already, let's attach that:
+
+#First, run pairwise fastANI between the two sets of genomes:
+#!/bin/bash
+
+qdir="/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/Ecoli_nonred_genomes"
+rdir="/stor/work/Ochman/hassan/MS_Ecoli_ORFans_Ch3/Ecoli_genomes"
+outdir="/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/two_genome_set_comparisons"
+
+mkdir -p "$outdir"
+
+: > fastANI_two_sets_mastercode.sh
+
+for q in "$qdir"/*fna; do
+    qbase=$(basename "$q")
+    qbase=${qbase%.*}
+
+    for r in "$rdir"/*fasta; do
+        rbase=$(basename "$r")
+        rbase=${rbase%.*}
+
+        echo "fastANI -q \"$q\" -r \"$r\" -o \"$outdir/${qbase}_${rbase}.tsv\"" >> fastANI_two_sets_mastercode.sh
+    done
+done
+
+#Huge time investment. Once that's run in a parallelized way, let's pick the sequence in the poppunk set that the RefSeq set has the best hit with:
+
+qdir="/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/Ecoli_nonred_genomes"
+tdir="/stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/two_genome_set_comparisons"
+
+mkdir -p best_per_query
+
+for q in "$qdir"/*_genomic.renamed.fna; do
+    qbase=$(basename "$q" .fna)
+
+    find "$tdir" -name "${qbase}_*.tsv" -print0 |
+    xargs -0 awk -F '\t' '
+        $3 > best {best=$3; line=$0}
+        END {if (line) print line}
+    ' > "best_per_query/${qbase}.best.tsv" &
+done
+
+wait
+
+#Extract phylogroup and lineage info for the popppunk genomes, attach:
+
+cd best_per_query
+
+cat *best.tsv |
+sed "s/\/stor\/work\/Ochman\/hassan\/MS_Ecoli_ORFans_Ch3\/Ecoli_genomes\///g" |
+sed "s/.fasta//g" | sort -k2 |
+join -1 2 -2 1 - 500_ipp_lineagedesignations.sorted.tsv |
+awk '{print $2,$6"@"$NF}' | rev | cut -f1 -d "/" | rev | sed "s/_genomic.renamed.fna//g" | sort -k1 |
+join -1 1 -2 1 - /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/genome_cluster.contigs.tsv | sed "s/ /\t/g" > /stor/scratch/Ochman/hassan/100724_Complete_Genomes/Ecoli_genomics/Ecoli.clusters.0.1.gaps/genome_phylogroup_contig_lineage.tsv
+
+#Rename the tree:
+
+sed "s/_genomic_renamed//g" phame/workdir/results/trees/RAxML_bestTree.Ecoli_all | perl -F'\t' -lane '
+BEGIN {
+    open M, "genome_phylogroup_contig_lineage.tsv" or die $!;
+    while (<M>) {
+        chomp;
+        @x = split /\t/;
+        $map{$x[0]} = "$x[0]_$x[1]_$x[3]";
+    }
+}
+for $k (keys %map) {
+    $q = quotemeta($k);
+    s/([\(,])$q(?=:)/$1$map{$k}/g;
+}
+print;
+' > Ecoli_RaxML_tree.nwk
+
+#Pretty much it. Rotate branches as needed, jot down lineage order. Khalas
