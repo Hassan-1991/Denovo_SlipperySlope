@@ -96,6 +96,7 @@ python get_ancestor_taxids.py 620 >> Ecoli_562_ancestor_taxids.txt
 sort -u Ecoli_562_ancestor_taxids.txt -o Ecoli_562_ancestor_taxids.txt
 python get_descendant_taxids.py 562 > Ecoli_562_descendant_taxids.txt
 python get_descendant_taxids.py 620 >> Ecoli_562_descendant_taxids.txt
+python get_descendant_taxids.py 10239 >> Ecoli_562_descendant_taxids.txt
 sort -u Ecoli_562_descendant_taxids.txt -o Ecoli_562_descendant_taxids.txt
 
 awk -F '\t' '
@@ -123,6 +124,86 @@ ARGIND==2 { desc[$1]; next }
 ' Ecoli_562_ancestor_taxids.txt \
   Ecoli_562_descendant_taxids.txt \
   Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.tsv > Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.badids_removed.tsv
+
+awk -F '\t' '
+($16 < 0.001) {
+    OFS = FS
+    status = ($5 > 60 ? "present" : "partial")
+    print $1, status, $(NF-1), $NF
+}
+' Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.badids_removed.tsv > Ecoli.nr.filtered.prot.longestrepresentative.vs_nr.tsv
+
+#Identify different classes of non-ORFans from this list:
+
+#!/bin/bash
+
+in="Ecoli.nr.filtered.prot.longestrepresentative.vs_nr.tsv"
+
+awk -F'\t' -v OFS='\t' '
+{
+    print $1 > "all_col1.tmp"
+
+    key = $1
+    for (i = 3; i <= NF; i++) key = key OFS $i
+    print key > "all_uniquehits.tmp"
+
+    if ($2 == "present") {
+        print $1 > "present_col1.tmp"
+        print key > "present_uniquehits.tmp"
+    }
+}
+' "$in"
+
+sort -u all_col1.tmp > anyhit_nr_nonORFans.partial.txt
+
+sort -u all_uniquehits.tmp |
+cut -f1 |
+sort |
+uniq -c |
+awk '($1 > 1)' > twohit_nr_nonORFans.partial.txt
+
+sort -u present_col1.tmp > anyhit_nr_nonORFans.present.txt
+
+sort -u present_uniquehits.tmp |
+cut -f1 |
+sort |
+uniq -c |
+awk '($1 > 1)' > twohit_nr_nonORFans.present.txt
+
+rm -f all_col1.tmp all_uniquehits.tmp present_col1.tmp present_uniquehits.tmp
+
+###
+###
+###
+###
+###
+###
+
+awk -F '\t' '
+ARGIND==1 { anc[$1]; next }
+ARGIND==2 { desc[$1]; next }
+
+{
+  lname = tolower($NF)
+
+  # drop rows with missing or specific unwanted labels
+  if ($NF == "N/A" || lname ~ /uncultured[[:space:]]+escherichia|escherichia[[:space:]]+sp\./) next
+
+  taxfield = $(NF-1)
+
+  # ancestors: strict whole-field match
+  if (taxfield in anc) next
+
+  # descendants: loose token match
+  n = split(taxfield, a, /[^0-9]+/)
+  for (i=1; i<=n; i++)
+    if (a[i] in desc) next
+
+  print
+}
+' empty.txt \
+  virus_descendant_taxids.txt \
+  Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.badids_removed.tsv > Ecoli.nr.filtered.prot.longestrepresentative.reduced1_vs_nr_withtax.badids_removed.2.tsv
 
 #Gotta work in how to remove viral ids too
 
